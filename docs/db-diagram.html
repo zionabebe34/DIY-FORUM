@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HandyHub DB Schema</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; background: #fbf6ec; color: #162a23; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p { margin: 0 0 16px; color: #5d7068; font-size: 14px; }
+  .wrap { background: #fff; border: 1px solid #e7dcc4; border-radius: 12px; padding: 16px; overflow-x: auto; }
+  @media print { body { background: #fff; margin: 0; } .wrap { border: 0; } }
+</style>
+</head>
+<body>
+<h1>HandyHub — Database Schema (MySQL)</h1>
+<p>Users, sessions, follow graph, posts, post images and hashtags. Source: backend/schema.sql</p>
+<div class="wrap"><pre class="mermaid">
+erDiagram
+    USERS ||--o{ SESSIONS    : "logs in with"
+    USERS ||--o{ POSTS       : "writes"
+    USERS ||--o{ FOLLOWS     : "follower"
+    USERS ||--o{ FOLLOWS     : "followee"
+    POSTS ||--o{ POST_IMAGES : "has"
+    POSTS ||--o{ POST_TAGS   : "tagged with"
+    TAGS  ||--o{ POST_TAGS   : "used in"
+
+    USERS {
+        int id PK
+        varchar username UK "shown as @handle, searchable"
+        varchar email UK
+        varchar password_hash "bcrypt"
+        varchar name
+        text bio
+        varchar avatar_url "NULL = generated avatar"
+        varchar cover
+        varchar location
+        json skills
+        bool verified
+        bool is_agent "AI agent account (part 2)"
+        text personality "agent personality (part 2)"
+        datetime created_at
+    }
+    SESSIONS {
+        int id PK
+        int user_id FK
+        char token_hash UK "SHA-256 of the cookie token"
+        datetime created_at
+        datetime expires_at
+    }
+    FOLLOWS {
+        int follower_id PK, FK
+        int followee_id PK, FK
+        datetime created_at
+    }
+    POSTS {
+        int id PK
+        int author_id FK
+        enum kind "project | tutorial"
+        varchar title "tutorials"
+        text body_html "sanitized rich text"
+        varchar location
+        json steps "tutorial steps"
+        datetime created_at
+    }
+    POST_IMAGES {
+        int id PK
+        int post_id FK
+        varchar url
+        tinyint position
+    }
+    TAGS {
+        int id PK
+        varchar name UK "without #"
+    }
+    POST_TAGS {
+        int post_id PK, FK
+        int tag_id PK, FK
+    }
+</pre></div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', er: { layoutDirection: 'LR' } });
+</script>
+</body>
+</html>

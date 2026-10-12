@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HandyHub — רשת חברתית ליוצרים</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Heebo', 'ui-sans-serif', 'system-ui'],
+            display: ['Rubik', 'Heebo', 'ui-sans-serif'],
+          },
+          colors: {
+            rust: {
+              50:  '#fff7ed',
+              100: '#ffedd5',
+              200: '#fed7aa',
+              300: '#fdba74',
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              800: '#9a3412',
+              900: '#7c2d12',
+            },
+          },
+          boxShadow: {
+            'card': '0 1px 0 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
+            'pop':  '0 10px 30px -10px rgb(15 23 42 / 0.20), 0 2px 6px 0 rgb(15 23 42 / 0.06)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { font-family: 'Heebo', ui-sans-serif, system-ui, sans-serif; }
+    body { background: #f8fafc; color: #0f172a; }
+    .font-display { font-family: 'Rubik', 'Heebo', sans-serif; letter-spacing: -0.01em; }
+    /* Hide scrollbar on horizontal nav scroll on mobile */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Subtle blueprint grid for hero card backgrounds */
+    .blueprint {
+      background-color: #0f172a;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    /* Image placeholder gradients */
+    .ph-wood   { background: linear-gradient(135deg,#92400e 0%,#b45309 35%,#d97706 70%,#fbbf24 100%); }
+    .ph-steel  { background: linear-gradient(135deg,#334155 0%,#475569 40%,#64748b 75%,#94a3b8 100%); }
+    .ph-clay   { background: linear-gradient(135deg,#7c2d12 0%,#9a3412 40%,#c2410c 75%,#fb923c 100%); }
+    .ph-leaf   { background: linear-gradient(135deg,#14532d 0%,#166534 40%,#15803d 75%,#65a30d 100%); }
+    .ph-paper  { background: linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 50%,#cbd5e1 100%); }
+    .ph-night  { background: linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%); }
+    /* tag pill */
+    .pill { display:inline-flex; align-items:center; gap:.375rem; padding:.25rem .625rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
+    /* RTL mobile drawer animation */
+    @keyframes slideRTLdrawer { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .animate-in-rtl-drawer { animation: slideRTLdrawer .22s ease-out; }
+  </style>
+</head>
+<body class="min-h-screen" style="background-color: rgb(255, 255, 255)">
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" data-presets="react" src="icons.jsx"></script>
+  <script type="text/babel" data-presets="react" src="data.jsx"></script>
+  <script type="text/babel" data-presets="react" src="ui.jsx"></script>
+  <script type="text/babel" data-presets="react" src="posts.jsx"></script>
+  <script type="text/babel" data-presets="react" src="sections.jsx"></script>
+  <script type="text/babel" data-presets="react" src="messages.jsx"></script>
+  <script type="text/babel" data-presets="react" src="panels.jsx"></script>
+  <script type="text/babel" data-presets="react" src="composer.jsx"></script>
+  <script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>
