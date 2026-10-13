@@ -110,7 +110,7 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
             <input
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setFocused(true); }}
               onFocus={() => setFocused(true)}
               onBlur={() => setTimeout(() => setFocused(false), 150)}
               onKeyDown={(e) => { if (e.key === 'Escape') closeSearch(); }}
@@ -305,7 +305,7 @@ function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, 
   const { items, loading, hasMore, error, loadMore, retry, remove } = usePaginated(
     (opts) => api.feed({ scope, tag: tagFilter, ...opts }),
     [scope, tagFilter, user?.username]);
-  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error);
+  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error, items.length);
 
   // Posts you just published appear on top immediately (deduped once the server returns them)
   const ids = new Set(items.map(p => p.id));

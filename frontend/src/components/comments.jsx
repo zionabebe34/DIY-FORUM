@@ -17,18 +17,19 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
   useEffect(() => {
     let alive = true;
     api.comments(post.id)
-      .then(list => { if (alive) { setItems(list); onCountChange && onCountChange(list.length); } })
+      .then(list => alive && setItems(list))
       .catch(e => alive && setError(e.message));
     return () => { alive = false; };
   }, [post.id]);
 
+  // Keep the post's comment counter in sync with the thread
+  useEffect(() => {
+    if (items && onCountChange) onCountChange(items.length);
+  }, [items?.length]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const add = async (body, parentId) => {
     const c = await api.addComment(post.id, body, parentId);
-    setItems(list => {
-      const next = [...list, c];
-      onCountChange && onCountChange(next.length);
-      return next;
-    });
+    setItems(list => [...list, c]);
     setReplyTo(null);
   };
 
@@ -37,11 +38,7 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
     try {
       await api.deleteComment(comment.id);
       // deleting a top-level comment also removes its replies (DB cascade)
-      setItems(list => {
-        const next = list.filter(c => c.id !== comment.id && c.parentId !== comment.id);
-        onCountChange && onCountChange(next.length);
-        return next;
-      });
+      setItems(list => list.filter(c => c.id !== comment.id && c.parentId !== comment.id));
     } catch (e) {
       alert(e.message);
     }

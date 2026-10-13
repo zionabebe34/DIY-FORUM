@@ -49,10 +49,22 @@ By default emails are **printed to the API console** (`MAIL_BACKEND=console`) �
 
 ### Tests
 
+**Backend** (pytest, integration tests against a separate `handyhub_test` MySQL database):
 ```bash
 cd backend && .venv/bin/python -m pytest
 ```
-Runs the API integration tests against a separate `handyhub_test` database and prints coverage.
+
+**Frontend** (Vitest + React Testing Library). The whole app runs against an in-memory fake API (`src/test/fakeServer.js`), so no server or database is needed:
+```bash
+cd frontend && npm test            # run once
+cd frontend && npm run coverage    # with a coverage report (fails below 85%)
+```
+An HTML report is written to `frontend/coverage/index.html`.
+
+| | Tests | Coverage (lines) |
+|---|---|---|
+| Backend | 61 | 99% |
+| Frontend | 81 | 97% |
 
 ## Part 1 requirements → where they live
 
@@ -79,6 +91,7 @@ Runs the API integration tests against a separate `handyhub_test` database and p
 | b.i Likes ("hearts") | ✅ `POST/DELETE /api/posts/<id>/like`; optimistic ♥ in `PostFooter` (`posts.jsx`) |
 | b.ii Comments (nested one level) | ✅ `GET/POST /api/posts/<id>/comments`, `DELETE /api/comments/<id>`; thread UI in `comments.jsx` |
 | e.i Admin users / moderators | ✅ `users.role`; admins assign roles in the dashboard or with `python manage.py set-role <user> admin` |
+| f. Unit & integration tests ≥ 85% | ✅ backend 99% (61 tests), frontend 97% (81 tests) — see "Tests" above |
 | e.ii Report system + admin dashboard | ✅ "דווח" on posts, comments and profiles → `POST /api/reports`; `#/admin` (`admin.jsx`): report cases, delete content, ban / unban, roles |
 
 Still mock data from the design: marketplace, store reviews, messages, notifications, saved items.

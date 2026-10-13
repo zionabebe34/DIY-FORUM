@@ -102,9 +102,6 @@ function PostHeader({ post, kind, onOpenProfile, onDeleted }) {
             {kind === 'tutorial' && (
               <span className="pill bg-rust-50 text-rust-700"><I.ListChecks size={11} strokeWidth={2.5} /> מדריך</span>
             )}
-            {kind === 'review' && (
-              <span className="pill bg-dijon-300/40 text-slate-800"><I.Star size={11} strokeWidth={2.5} /> ביקורת</span>
-            )}
           </div>
           <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
             <button onClick={openProfile} className="truncate hover:text-rust-700" dir="ltr">{author.handle}</button>
@@ -318,140 +315,10 @@ function TutorialPost({ post, onOpenProfile, onPickTag, onDeleted }) {
   );
 }
 
-// --- Variant: Store review post ---------------------------------------------
-function ReviewPost({ post, onOpenProfile, onOpenStore }) {
-  const openStore = () => post.shop?.id && onOpenStore && onOpenStore(post.shop.id);
-  return (
-    <article className="paper-card rounded-2xl shadow-card overflow-hidden">
-      <PostHeader post={post} kind="review" onOpenProfile={onOpenProfile} />
-      <div className="px-4 pb-3 text-slate-800 leading-relaxed">{post.body}</div>
-
-      <button
-        onClick={openStore}
-        disabled={!post.shop?.id}
-        className="block text-right mx-4 mb-3 rounded-xl border hairline bg-cream/60 p-4 hover:border-rust-300 hover:shadow-card transition disabled:hover:border-slate-200 disabled:hover:shadow-none disabled:cursor-default"
-        style={{ width: 'calc(100% - 2rem)' }}>
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="stamp inline-flex items-center gap-1">
-              חנות כלים {post.shop?.id && <I.ChevronDown size={11} className="-rotate-90"/>}
-            </div>
-            <div className="font-display font-bold text-xl text-slate-900 mt-1 leading-tight">{post.shop.name}</div>
-            <div className="text-xs text-slate-500 inline-flex items-center gap-1 mt-1 font-mono">
-              <I.MapPin size={11} /> {post.shop.neighborhood}
-            </div>
-          </div>
-          <div className="text-right">
-            <UI.Stars value={post.shop.rating} size={16} showNumber={false} />
-            <div className="text-xs text-slate-500 mt-1 font-mono"><span className="font-bold text-slate-900">{post.shop.rating}</span> · {post.shop.reviews} ביקורות</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-3 text-sm">
-          <div>
-            <div className="stamp text-rust-700">פלוסים</div>
-            <ul className="mt-1 space-y-0.5">{post.pros.map(p => <li key={p} className="text-slate-700">+ {p}</li>)}</ul>
-          </div>
-          <div>
-            <div className="stamp">מינוסים</div>
-            <ul className="mt-1 space-y-0.5">{post.cons.map(p => <li key={p} className="text-slate-700">– {p}</li>)}</ul>
-          </div>
-        </div>
-        {post.shop?.id && (
-          <div className="mt-3 pt-2 border-t hairline text-xs font-bold text-rust-700 inline-flex items-center gap-1">
-            כל הביקורות על {post.shop.name} <I.ChevronDown size={12} className="-rotate-90"/>
-          </div>
-        )}
-      </button>
-
-      <PostFooter post={post} onOpenProfile={onOpenProfile} />
-    </article>
-  );
-}
-
-// --- Variant: Agent / bot post ----------------------------------------------
-function AgentPost({ post, onOpenProfile }) {
-  const [liked, setLiked] = useStateP(false);
-  const [saved, setSaved] = useStateP(false);
-  return (
-    <article className="rounded-2xl border border-slate-900/30 bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100 overflow-hidden shadow-card">
-      <PostHeaderDark post={post} onOpenProfile={onOpenProfile} />
-      <div className="px-4 pb-3 text-slate-200 leading-relaxed">{post.body}</div>
-
-      <div className="mx-4 mb-3 rounded-xl bg-white/5 ring-1 ring-white/10 divide-y divide-white/5">
-        {post.bullets.map((b, i) => (
-          <div key={i} className="flex items-center justify-between gap-3 px-3 py-2.5">
-            <div className="min-w-0">
-              <div className="font-semibold text-cream truncate">{b.name}</div>
-              <div className="text-xs text-slate-400">היה <span className="line-through">{b.was}</span></div>
-            </div>
-            <div className="text-right">
-              <div className="font-display font-bold text-rust-300 text-2xl leading-none">{b.now}</div>
-              <div className="text-[11px] font-bold text-dijon-400 font-mono">{b.delta}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between px-3 py-2 border-t border-white/10">
-        <div className="flex items-center gap-1">
-          <button onClick={() => setLiked(l => !l)}
-            className={"inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-white/10 " +
-                       (liked ? "text-rust-300" : "text-slate-300")}>
-            <I.Heart size={18} fill={liked ? 'currentColor' : 'none'} />
-            <span className="text-sm font-semibold tabnum">{(post.stats.likes + (liked ? 1 : 0)).toLocaleString()}</span>
-          </button>
-          <button className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-slate-300">
-            <I.MessageCircle size={18} />
-            <span className="text-sm font-semibold">{post.stats.comments}</span>
-          </button>
-        </div>
-        <button onClick={() => setSaved(s => !s)}
-          className={"inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition " +
-                     (saved ? "bg-rust-500 text-cream hover:bg-rust-600"
-                            : "bg-white/10 text-cream hover:bg-white/15")}>
-          <I.Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />
-          <span>{saved ? 'במעקב' : 'תעקוב'}</span>
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function PostHeaderDark({ post, onOpenProfile }) {
-  const { author } = post;
-  const ago = useAgo(post);
-  const openProfile = () => onOpenProfile && onOpenProfile(author.id);
-  return (
-    <div className="flex items-start justify-between gap-3 p-4 pb-3">
-      <div className="flex items-center gap-3">
-        <button onClick={openProfile} className="rounded-full hover:ring-2 hover:ring-rust-400/40 transition" title={`לפרופיל של ${author.name}`}>
-          <UI.Avatar person={author} size={44} />
-        </button>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={openProfile} className="font-bold text-cream hover:text-rust-300">{author.name}</button>
-            <UI.AgentBadge />
-          </div>
-          <div className="text-[11px] font-mono text-slate-400 flex items-center gap-1.5 mt-0.5">
-            <button onClick={openProfile} className="hover:text-rust-300">{author.handle}</button>
-            <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-            <span>{ago}</span>
-          </div>
-        </div>
-      </div>
-      <button className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400">
-        <I.MoreH size={18} />
-      </button>
-    </div>
-  );
-}
-
 // Pick the right card for a post
 function PostCard({ post, ...handlers }) {
   if (post.kind === 'tutorial') return <TutorialPost post={post} {...handlers} />;
-  if (post.kind === 'review')   return <ReviewPost   post={post} {...handlers} />;
-  if (post.kind === 'agent')    return <AgentPost    post={post} {...handlers} />;
   return <ProjectPost post={post} {...handlers} />;
 }
 
-export const PostCards = { ProjectPost, TutorialPost, ReviewPost, AgentPost, PostCard, RichText };
+export const PostCards = { ProjectPost, TutorialPost, PostCard, RichText };

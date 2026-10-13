@@ -90,7 +90,7 @@ export function PeopleList({ username, which, onOpenProfile, onSign, emptyText }
     ? (opts) => api.followers(username, opts)
     : (opts) => api.following(username, opts);
   const { items, loading, hasMore, error, loadMore, retry } = usePaginated(fetchPage, [username, which]);
-  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error);
+  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error, items.length);
 
   return (
     <section className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">

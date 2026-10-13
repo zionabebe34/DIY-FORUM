@@ -237,7 +237,7 @@ function Stat({ label, value, accent, onClick }) {
 function ProfilePosts({ username, firstName, onOpenProfile, onPickTag, createdPosts, onDeleted }) {
   const { items, loading, hasMore, error, loadMore, retry, remove } =
     usePaginated((opts) => api.userPosts(username, opts), [username]);
-  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error);
+  const sentinel = useInfiniteScroll(loadMore, hasMore && !loading && !error, items.length);
   const ids = new Set(items.map(p => p.id));
   const posts = [...createdPosts.filter(p => !ids.has(p.id)), ...items];
   const handleDeleted = (id) => { remove(id); onDeleted(); };

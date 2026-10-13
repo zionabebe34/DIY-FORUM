@@ -55,8 +55,12 @@ export function usePaginated(fetchPage, deps) {
   return { items, loading, hasMore, error, loadMore, retry, prepend, remove, update };
 }
 
-/** Calls `onVisible` when the returned ref's element scrolls near the viewport. */
-export function useInfiniteScroll(onVisible, enabled) {
+/**
+ * Calls `onVisible` when the returned ref's element scrolls near the viewport.
+ * `version` (e.g. the number of loaded items) re-arms the observer after every
+ * page, so loading continues even if the sentinel never left the viewport.
+ */
+export function useInfiniteScroll(onVisible, enabled, version) {
   const ref = useRef(null);
   const cb = useRef(onVisible);
   cb.current = onVisible;
@@ -68,7 +72,7 @@ export function useInfiniteScroll(onVisible, enabled) {
     }, { rootMargin: '600px 0px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [enabled]);
+  }, [enabled, version]);
   return ref;
 }
 
