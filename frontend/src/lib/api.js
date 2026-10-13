@@ -1,6 +1,8 @@
 // Thin fetch wrapper for the Flask API + adapters that turn API rows into the
 // shapes the design components expect (person.id = username, post.minutesAgo …).
 
+import { announcePostsChanged } from './intents.js';
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message);
@@ -84,7 +86,10 @@ export function toPost(p) {
     tags: p.tags || [],
     steps: p.steps || [],
     likedByMe: !!p.liked_by_me,
-    stats: { likes: p.likes_count || 0, comments: p.comments_count || 0, saves: 0 },
+    savedByMe: !!p.saved_by_me,
+    sharedPostId: p.shared_post_id ?? null,
+    sharedPost: p.shared_post ? toPost(p.shared_post) : null,
+    stats: { likes: p.likes_count || 0, comments: p.comments_count || 0, saves: p.saves_count || 0 },
   };
 }
 
@@ -114,6 +119,7 @@ export function toListing(l) {
     image: l.image_url,
     bg: l.cover,
     createdAt: l.created_at,
+    savedByMe: !!l.saved_by_me,
     seller: toPerson(l.seller),
   };
 }
@@ -135,6 +141,11 @@ export function toMessage(m) {
            listing: m.listing ? toListing(m.listing) : null };
 }
 
+export function toNotification(n) {
+  return { id: n.id, kind: n.kind, text: n.text, createdAt: n.created_at, read: n.read, commentId: n.comment_id,
+           actor: n.actor ? toPerson(n.actor) : null, post: n.post };
+}
+
 const page = (mapper) => (data) => ({ items: data.items.map(mapper), nextCursor: data.next_cursor });
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
@@ -151,8 +162,10 @@ export const api = {
     request('/api/feed' + qs({ scope, tag, before, limit })).then(page(toPost)),
   userPosts: (username, { before, limit = 10 } = {}) =>
     request(`/api/users/${encodeURIComponent(username)}/posts` + qs({ before, limit })).then(page(toPost)),
-  createPost: (formData) => request('/api/posts', { method: 'POST', form: formData }).then(d => toPost(d.post)),
-  deletePost: (id) => request(`/api/posts/${id}`, { method: 'DELETE' }),
+  createPost: (formData) => request('/api/posts', { method: 'POST', form: formData })
+    .then(d => { announcePostsChanged(); return toPost(d.post); }),
+  deletePost: (id) => request(`/api/posts/${id}`, { method: 'DELETE' })
+    .then(d => { announcePostsChanged(); return d; }),
   like: (id) => request(`/api/posts/${id}/like`, { method: 'POST' }),
   unlike: (id) => request(`/api/posts/${id}/like`, { method: 'DELETE' }),
   comments: (id) => request(`/api/posts/${id}/comments`).then(d => d.items.map(toComment)),
@@ -160,6 +173,7 @@ export const api = {
     request(`/api/posts/${id}/comments`, { method: 'POST', json: { body, parent_id: parentId ?? null } })
       .then(d => toComment(d.comment)),
   deleteComment: (commentId) => request(`/api/comments/${commentId}`, { method: 'DELETE' }),
+  post: (id) => request(`/api/posts/${id}`).then(d => toPost(d.post)),
 
   profile: (username) => request(`/api/users/${encodeURIComponent(username)}`).then(d => toPerson(d.user)),
   updateProfile: (formData) => request('/api/users/me', { method: 'PUT', form: formData }).then(d => d.user),
@@ -204,6 +218,20 @@ export const api = {
       .then(d => toMessage(d.message)),
   unreadMessages: () => request('/api/messages/unread'),
   searchUsers: (q) => request('/api/users/search' + qs({ q })).then(d => d.items.map(toPerson)),
+
+  // Notifications
+  notifications: ({ filter, before } = {}) => request('/api/notifications' + qs({ filter, before }))
+    .then(d => ({ items: d.items.map(toNotification), nextCursor: d.next_cursor, unread: d.unread })),
+  unreadNotifications: () => request('/api/notifications/unread').then(d => d.count),
+  markNotificationsRead: (ids) => request('/api/notifications/read', { method: 'POST', json: ids ? { ids } : {} })
+    .then(d => d.unread),
+
+  // Saved items
+  savePost: (id) => request(`/api/posts/${id}/save`, { method: 'POST' }),
+  unsavePost: (id) => request(`/api/posts/${id}/save`, { method: 'DELETE' }),
+  saveListing: (id) => request(`/api/listings/${id}/save`, { method: 'POST' }),
+  unsaveListing: (id) => request(`/api/listings/${id}/save`, { method: 'DELETE' }),
+  saved: () => request('/api/saved').then(d => ({ posts: d.posts.map(toPost), listings: d.listings.map(toListing) })),
 
   // Reporting + moderation
   report: (targetType, targetId, reason, details) =>

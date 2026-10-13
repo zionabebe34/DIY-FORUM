@@ -13,6 +13,8 @@ function CountUp({ value, duration = 1100, startDelay = 0, format, className = '
   const [n, setN] = useStateAN(0);
   const ref = useRefAN(null);
   const fired = useRefAN(false);
+  const target = useRefAN(value);       // the animation always lands on the latest value
+  target.current = value;
   const fmt = format || ((x) => Math.round(x).toLocaleString('he-IL'));
 
   useEffectAN(() => {
@@ -26,7 +28,7 @@ function CountUp({ value, duration = 1100, startDelay = 0, format, className = '
       const tick = (now) => {
         if (now < start) { requestAnimationFrame(tick); return; }
         const t = Math.min(1, (now - start) / duration);
-        setN(value * ease(t));
+        setN(target.current * ease(t));
         if (t < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);

@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user, is_moderator, login_required
 from moderation import resolve_reports
+from notifications import notify, notify_mentions
 from db import commit, execute, query
 from utils import (UploadError, html_to_text, iso, parse_json_list, public_user,
                    sanitize_html, save_image)
@@ -23,7 +24,7 @@ HASHTAG_RE = re.compile(r'#([\w֐-׿]{1,50})')
 
 # ── Loading posts ───────────────────────────────────────────────────────────
 _POST_SELECT = """
-    SELECT p.id, p.kind, p.title, p.body_html, p.location, p.steps, p.created_at,
+    SELECT p.id, p.kind, p.title, p.body_html, p.location, p.steps, p.shared_post_id, p.created_at,
            u.id AS u_id, u.username AS u_username, u.name AS u_name, u.avatar_url AS u_avatar_url,
            u.cover AS u_cover, u.verified AS u_verified, u.is_agent AS u_is_agent
     FROM posts p JOIN users u ON u.id = p.author_id
@@ -34,10 +35,16 @@ def _in_clause(ids):
     return ', '.join(['%s'] * len(ids))
 
 
-def _serialize_posts(rows):
+def _serialize_posts(rows, embed_shared=True):
     if not rows:
         return []
     ids = [r['id'] for r in rows]
+    # A share post carries a preview of the original (None when it was deleted or its author is banned)
+    shared = {}
+    shared_ids = list({r['shared_post_id'] for r in rows if r['shared_post_id']}) if embed_shared else []
+    if shared_ids:
+        originals = query(f'{_POST_SELECT} WHERE p.id IN ({_in_clause(shared_ids)}) AND u.is_banned = FALSE', shared_ids)
+        shared = {p['id']: p for p in _serialize_posts(originals, embed_shared=False)}
     images, tags = {}, {}
     for r in query(f'SELECT post_id, url FROM post_images WHERE post_id IN ({_in_clause(ids)}) '
                    'ORDER BY position', ids):
@@ -50,11 +57,16 @@ def _serialize_posts(rows):
         f'SELECT post_id, COUNT(*) AS n FROM post_likes WHERE post_id IN ({_in_clause(ids)}) GROUP BY post_id', ids)}
     comments = {r['post_id']: int(r['n']) for r in query(
         f'SELECT post_id, COUNT(*) AS n FROM comments WHERE post_id IN ({_in_clause(ids)}) GROUP BY post_id', ids)}
+    saves = {r['post_id']: int(r['n']) for r in query(
+        f'SELECT post_id, COUNT(*) AS n FROM saved_posts WHERE post_id IN ({_in_clause(ids)}) GROUP BY post_id', ids)}
     me = current_user()
-    liked = set()
+    liked, saved = set(), set()
     if me:
         liked = {r['post_id'] for r in query(
             f'SELECT post_id FROM post_likes WHERE user_id = %s AND post_id IN ({_in_clause(ids)})',
+            (me['id'], *ids))}
+        saved = {r['post_id'] for r in query(
+            f'SELECT post_id FROM saved_posts WHERE user_id = %s AND post_id IN ({_in_clause(ids)})',
             (me['id'], *ids))}
 
     result = []
@@ -69,12 +81,16 @@ def _serialize_posts(rows):
             'body_html': r['body_html'],
             'location': r['location'],
             'steps': steps or [],
+            'shared_post_id': r['shared_post_id'],
+            'shared_post': shared.get(r['shared_post_id']),
             'images': images.get(r['id'], []),
             'tags': tags.get(r['id'], []),
             'created_at': iso(r['created_at']),
             'likes_count': likes.get(r['id'], 0),
             'comments_count': comments.get(r['id'], 0),
             'liked_by_me': r['id'] in liked,
+            'saves_count': saves.get(r['id'], 0),
+            'saved_by_me': r['id'] in saved,
             'author': {
                 'id': r['u_id'], 'username': r['u_username'], 'name': r['u_name'],
                 'avatar_url': r['u_avatar_url'], 'cover': r['u_cover'],
@@ -182,7 +198,21 @@ def create_post():
                           'note': str(s.get('note', '')).strip()[:300], 'thumb': thumb})
         if not steps:
             return jsonify({'error': 'הוסיפו לפחות שלב אחד למדריך'}), 400
-    elif not body_text and not files:
+
+    shared_post_id = form.get('shared_post_id', type=int)
+    if shared_post_id:
+        original = query('SELECT p.id, p.author_id, p.shared_post_id FROM posts p JOIN users u ON u.id = p.author_id '
+                         'WHERE p.id = %s AND u.is_banned = FALSE', (shared_post_id,), one=True)
+        if original is None:
+            return jsonify({'error': 'הפוסט ששיתפתם לא נמצא'}), 400
+        if kind != 'project':
+            return jsonify({'error': 'אפשר לשתף רק כפוסט רגיל'}), 400
+        # Sharing a share quotes the original post
+        if original['shared_post_id']:
+            original = query('SELECT id, author_id FROM posts WHERE id = %s', (original['shared_post_id'],), one=True) \
+                or original
+        shared_post_id = original['id']
+    elif kind == 'project' and not body_text and not files:
         return jsonify({'error': 'הפוסט ריק — כתבו משהו או הוסיפו תמונה'}), 400
 
     # Tags from the tag box + any #hashtags written in the text
@@ -197,13 +227,17 @@ def create_post():
 
     location = (form.get('location') or me.get('location') or '').strip()[:80] or None
     post_id, _ = execute(
-        'INSERT INTO posts (author_id, kind, title, body_html, location, steps) VALUES (%s, %s, %s, %s, %s, %s)',
+        'INSERT INTO posts (author_id, kind, title, body_html, location, steps, shared_post_id) '
+        'VALUES (%s, %s, %s, %s, %s, %s, %s)',
         (me['id'], kind, title, body_html, location,
-         json.dumps(steps, ensure_ascii=False) if steps is not None else None))
+         json.dumps(steps, ensure_ascii=False) if steps is not None else None, shared_post_id))
     for pos, url in enumerate(image_urls):
         execute('INSERT INTO post_images (post_id, url, position) VALUES (%s, %s, %s)', (post_id, url, pos))
     if tags:
         _save_tags(post_id, tags)
+    if shared_post_id:
+        notify(original['author_id'], me['id'], 'share', post_id, text=body_text)   # opens (and goes with) the share
+    notify_mentions(' '.join(t for t in (title, body_text) if t), me['id'], post_id, skip={me['id']})
     commit()
 
     rows = query(f'{_POST_SELECT} WHERE p.id = %s', (post_id,))
@@ -229,19 +263,23 @@ def delete_post(post_id):
 # ── Hashtags & search ───────────────────────────────────────────────────────
 @bp.get('/tags/trending')
 def trending_tags():
-    """Most-used hashtags in the last `hours` (default: one week)."""
+    """Top 5 hashtags, ranked by how many posts used them in the last `hours` (default: one week).
+    `posts` is the exact number of visible posts that carry the tag (all time, banned authors excluded)."""
     hours = min(max(request.args.get('hours', 24 * 7, type=int), 1), 24 * 365)
     rows = query(
-        """SELECT t.name, COUNT(*) AS posts
+        """SELECT t.name, COUNT(*) AS posts,
+                  SUM(p.created_at >= UTC_TIMESTAMP() - INTERVAL %s HOUR) AS recent
            FROM post_tags pt
            JOIN tags t  ON t.id = pt.tag_id
            JOIN posts p ON p.id = pt.post_id
-           WHERE p.created_at >= UTC_TIMESTAMP() - INTERVAL %s HOUR
+           JOIN users u ON u.id = p.author_id
+           WHERE u.is_banned = FALSE
            GROUP BY t.id, t.name
-           ORDER BY posts DESC, t.name
+           ORDER BY recent DESC, posts DESC, t.name
            LIMIT 5""",
         (hours,))
-    return jsonify({'items': [{'tag': '#' + r['name'], 'posts': int(r['posts'])} for r in rows]})
+    return jsonify({'items': [{'tag': '#' + r['name'], 'posts': int(r['posts']), 'recent': int(r['recent'])}
+                              for r in rows]})
 
 
 @bp.get('/search')
@@ -263,8 +301,10 @@ def search():
                   'ORDER BY p.id DESC LIMIT 4',
                   (like, like))
     tags = query(
-        """SELECT t.name, COUNT(pt.post_id) AS posts FROM tags t
+        """SELECT t.name, COUNT(u.id) AS posts FROM tags t
            LEFT JOIN post_tags pt ON pt.tag_id = t.id
+           LEFT JOIN posts p ON p.id = pt.post_id
+           LEFT JOIN users u ON u.id = p.author_id AND u.is_banned = FALSE
            WHERE t.name LIKE %s GROUP BY t.id, t.name ORDER BY posts DESC LIMIT 5""",
         (like,))
     return jsonify({

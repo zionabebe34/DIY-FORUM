@@ -4,6 +4,7 @@ from mysql.connector import errors as mysql_errors
 
 from auth import current_user, is_moderator, login_required
 from moderation import resolve_reports
+from notifications import notify, notify_mentions, unnotify
 from db import commit, execute, query
 from utils import iso
 
@@ -17,6 +18,11 @@ def _post_exists(post_id):
     return query('SELECT id FROM posts WHERE id = %s', (post_id,), one=True) is not None
 
 
+def _post_author(post_id):
+    row = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
+    return row and row['author_id']
+
+
 def _likes_count(post_id):
     return int(query('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = %s', (post_id,), one=True)['n'])
 
@@ -25,10 +31,13 @@ def _likes_count(post_id):
 @bp.post('/posts/<int:post_id>/like')
 @login_required
 def like(post_id):
-    if not _post_exists(post_id):
+    author_id = _post_author(post_id)
+    if author_id is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
+    me = current_user()['id']
     try:
-        execute('INSERT INTO post_likes (user_id, post_id) VALUES (%s, %s)', (current_user()['id'], post_id))
+        execute('INSERT INTO post_likes (user_id, post_id) VALUES (%s, %s)', (me, post_id))
+        notify(author_id, me, 'like', post_id)
         commit()
     except mysql_errors.IntegrityError:
         pass  # already liked — liking is idempotent
@@ -38,9 +47,12 @@ def like(post_id):
 @bp.delete('/posts/<int:post_id>/like')
 @login_required
 def unlike(post_id):
-    if not _post_exists(post_id):
+    author_id = _post_author(post_id)
+    if author_id is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
-    execute('DELETE FROM post_likes WHERE user_id = %s AND post_id = %s', (current_user()['id'], post_id))
+    me = current_user()['id']
+    execute('DELETE FROM post_likes WHERE user_id = %s AND post_id = %s', (me, post_id))
+    unnotify(author_id, me, 'like', post_id)
     commit()
     return jsonify({'liked': False, 'likes_count': _likes_count(post_id)})
 
@@ -80,7 +92,8 @@ def list_comments(post_id):
 @bp.post('/posts/<int:post_id>/comments')
 @login_required
 def add_comment(post_id):
-    if not _post_exists(post_id):
+    post_author = _post_author(post_id)
+    if post_author is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
     data = request.get_json(silent=True) or {}
     body = (data.get('body') or '').strip()
@@ -89,16 +102,24 @@ def add_comment(post_id):
     if len(body) > MAX_COMMENT_CHARS:
         return jsonify({'error': f'התגובה ארוכה מדי (עד {MAX_COMMENT_CHARS} תווים)'}), 400
 
-    parent_id = data.get('parent_id')
+    parent_id, parent_author = data.get('parent_id'), None
     if parent_id is not None:
-        parent = query('SELECT id, post_id, parent_id FROM comments WHERE id = %s', (parent_id,), one=True)
+        parent = query('SELECT id, post_id, parent_id, author_id FROM comments WHERE id = %s', (parent_id,), one=True)
         if parent is None or parent['post_id'] != post_id:
             return jsonify({'error': 'התגובה שעונים לה לא נמצאה'}), 400
         # Only one level of nesting: a reply to a reply joins the same top-level thread
         parent_id = parent['parent_id'] or parent['id']
+        parent_author = parent['author_id']
 
+    me = current_user()['id']
     comment_id, _ = execute('INSERT INTO comments (post_id, author_id, parent_id, body) VALUES (%s, %s, %s, %s)',
-                            (post_id, current_user()['id'], parent_id, body))
+                            (post_id, me, parent_id, body))
+    # The person replied to hears about a reply; the post's author about any other comment
+    if parent_author and parent_author != me:
+        notify(parent_author, me, 'reply', post_id, comment_id, body)
+    if post_author != parent_author:
+        notify(post_author, me, 'comment', post_id, comment_id, body)
+    notify_mentions(body, me, post_id, comment_id, skip={me, post_author, parent_author})
     commit()
     row = query(f'{_COMMENT_SELECT} WHERE c.id = %s', (comment_id,), one=True)
     return jsonify({'comment': _serialize_comment(row)}), 201

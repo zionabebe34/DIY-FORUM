@@ -1,5 +1,4 @@
-// Marketplace, store reviews and private messages (API-backed), plus the design's
-// screens that still run on local mock data (notifications, saved, mobile drawer).
+// Marketplace, store reviews and private messages, plus the mobile drawer.
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderApp, navigate } from './utils.jsx';
@@ -232,26 +231,7 @@ describe('messages', () => {
   });
 });
 
-describe('notifications & saved panels', () => {
-  it('filters notifications and browses saved items', async () => {
-    const { user } = await renderApp({ as: 'bob' });
-    await user.click(screen.getByTitle('התראות'));
-    const panel = (await screen.findByText('התראות', { selector: 'h2' })).closest('aside');
-    for (const b of within(panel).getAllByRole('button').filter(x => x.className.includes('rounded-full') && x.textContent)) {
-      await user.click(b);
-    }
-    await user.click(within(panel).getAllByRole('button')[0]);   // close
-
-    await user.click(screen.getByRole('button', { name: 'תפריט משתמש' }));
-    await user.click(screen.getByText('פרויקטים שמורים'));
-    const saved = (await screen.findByText('שמורים', { selector: 'h2' })).closest('aside');
-    await user.click(within(saved).getByRole('button', { name: /כלים/ }));
-    await user.click(within(saved).getByRole('button', { name: /פרויקטים/ }));
-    // saved mock posts include a review card and an agent card
-    const hearts = saved.querySelectorAll('button');
-    for (const b of [...hearts].slice(0, 12)) fireEvent.click(b);
-  });
-
+describe('mobile drawer', () => {
   it('mobile drawer navigates and opens panels', async () => {
     const { user } = await renderApp({ as: 'alice' });
     const openDrawer = () => user.click(screen.getByRole('button', { name: 'תפריט' }));

@@ -1,10 +1,10 @@
 import React from 'react';
 import { I } from './icons.jsx';
 import { UI } from './ui.jsx';
-import { AN } from './anims.jsx';
 import { FollowButton } from './social.jsx';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import { POSTS_CHANGED_EVENT } from '../lib/intents.js';
 import { Marketplace, MarketplaceTeaser } from './market.jsx';
 import { StoreReviews, Store } from './stores.jsx';
 // Sidebar (suggested makers, trending tags); re-exports the marketplace and store pages
@@ -66,12 +66,19 @@ function SuggestedMakers({ onOpenProfile, onSign, refreshKey }) {
   );
 }
 
+const TRENDING_REFRESH_MS = 60000;
+
+// Ranked by activity this week; the number is the exact count of posts that use the tag.
+// Refreshes when a post is published / deleted here, and every minute for everyone else's posts.
 function TrendingProjects({ onPickTag, refreshKey }) {
   const [tags, setTags] = useStateM([]);
   useEffectM(() => {
     let alive = true;
-    api.trending().then(t => alive && setTags(t)).catch(() => {});
-    return () => { alive = false; };
+    const load = () => api.trending().then(t => alive && setTags(t)).catch(() => {});
+    load();
+    const timer = setInterval(load, TRENDING_REFRESH_MS);
+    window.addEventListener(POSTS_CHANGED_EVENT, load);
+    return () => { alive = false; clearInterval(timer); window.removeEventListener(POSTS_CHANGED_EVENT, load); };
   }, [refreshKey]);
   if (tags.length === 0) return null;
   return (
@@ -80,7 +87,7 @@ function TrendingProjects({ onPickTag, refreshKey }) {
         <I.TrendUp size={16} className="text-rust-600" />
         <h3 className="font-display font-bold text-slate-900">תגיות חמות</h3>
       </div>
-      <p className="px-4 text-xs text-slate-500 -mt-1 mb-2">השבוע ב-HandyHub</p>
+      <p className="px-4 text-xs text-slate-500 -mt-1 mb-2">הפעילות ביותר השבוע ב-HandyHub</p>
       <ul>
         {tags.map((t, i) => (
           <li key={t.tag}>
@@ -91,8 +98,8 @@ function TrendingProjects({ onPickTag, refreshKey }) {
                   <div className="font-bold text-slate-900 text-sm inline-flex items-center gap-0.5">
                     <I.Hash size={13} className="text-rust-600" />{t.tag.replace('#','')}
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono">
-                    <AN.CountUp value={t.posts} startDelay={i * 80}/> פוסטים
+                  <div className="text-[11px] text-slate-500 font-mono" title={`${t.recent} מהם השבוע`}>
+                    <span className="tabnum">{t.posts.toLocaleString('he-IL')}</span> {t.posts === 1 ? 'פוסט' : 'פוסטים'}
                   </div>
                 </div>
               </div>

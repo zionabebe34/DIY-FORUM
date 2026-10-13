@@ -9,6 +9,7 @@ from auth import (SESSION_COOKIE, check_password, clear_session_cookie, create_s
                   current_user, delete_session, hash_password, set_session_cookie, token_hash)
 from db import commit, execute, query
 from mailer import send_email
+from notifications import notify_system
 from utils import EMAIL_RE, USERNAME_RE, private_user
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -52,6 +53,7 @@ def signup():
             (username, email, hash_password(password), name, '[]'))
     except mysql_errors.IntegrityError:  # lost a race with a concurrent signup
         return jsonify({'error': 'שם המשתמש או האימייל כבר תפוסים'}), 409
+    notify_system(user_id, f'ברוכים הבאים ל-HandyHub, {name}! שתפו את הפרויקט הראשון שלכם 🛠️')
 
     user = query('SELECT * FROM users WHERE id = %s', (user_id,), one=True)
     return _login_response(user, 201)

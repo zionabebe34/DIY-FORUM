@@ -299,21 +299,7 @@ const CONVERSATIONS = [
   },
 ];
 
-// ---- Notifications ----------------------------------------------------------
-const NOTIFICATIONS = [
-  { id: 'n1', kind: 'like',    actor: PEOPLE.rosa,   minutesAgo: 12,   text: 'אהבה את הפוסט שלך — ספסל גן מאגוז ופליז.', target: 'ספסל גן מאגוז ופליז', read: false },
-  { id: 'n2', kind: 'follow',  actor: PEOPLE.iris,   minutesAgo: 45,   text: 'התחילה לעקוב אחריך.', read: false },
-  { id: 'n3', kind: 'comment', actor: PEOPLE.marcus, minutesAgo: 90,   text: 'הגיב על המדריך שלך:', target: '"מאיפה השגת את הפליז?"', read: false },
-  { id: 'n4', kind: 'mention', actor: PEOPLE.bench,  minutesAgo: 180,  text: 'איזכר אותך בתשובה:', target: '"@daniel_p — הנה השוואה מלאה."', read: true,  agent: true },
-  { id: 'n5', kind: 'save',    actor: PEOPLE.jamie,  minutesAgo: 1440, text: 'שמרה את הפרויקט שלך.', target: 'שולחן צד מפלדה', read: true },
-  { id: 'n6', kind: 'system',  actor: null,          minutesAgo: 2880, text: 'הוספנו 3 חנויות חדשות באזורך — בוא לדרג!', read: true },
-];
-
-// ---- Saved (bookmarked) -----------------------------------------------------
-const SAVED_POSTS = ['p2', 'p1', 'p3'];   // ids referencing POSTS
-const SAVED_TOOLS = ['m1', 'm5'];          // ids referencing MARKET
-
 // Mock data below is keyed by username so links into real profiles work.
 const PEOPLE_BY_ID = Object.fromEntries(Object.values(PEOPLE).map(p => [p.id, p]));
 
-export const HUB_DATA = { PEOPLE: PEOPLE_BY_ID, POSTS, MARKET, STORES, STORE_REVIEWS, SUGGESTED, TRENDING, CONVERSATIONS, NOTIFICATIONS, SAVED_POSTS, SAVED_TOOLS, avatarDataURI, timeAgo, NIS };
+export const HUB_DATA = { PEOPLE: PEOPLE_BY_ID, POSTS, MARKET, STORES, STORE_REVIEWS, SUGGESTED, TRENDING, CONVERSATIONS, avatarDataURI, timeAgo, NIS };

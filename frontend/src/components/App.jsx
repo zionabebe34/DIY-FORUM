@@ -1,7 +1,6 @@
 // HandyHub main app — Navbar, Feed view, Composer, view router
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { I } from './icons.jsx';
-import { HUB_DATA } from './data.jsx';
 import { UI } from './ui.jsx';
 import { PostCards } from './posts.jsx';
 import { SECTIONS } from './sections.jsx';
@@ -19,11 +18,13 @@ import { inquiryText } from './market.jsx';
 const MESSAGE_POLL_MS = 10000;
 import { api } from '../lib/api.js';
 import { useAuth, NEED_LOGIN_EVENT } from '../lib/auth.jsx';
+import { MESSAGE_EVENT, SHARE_EVENT } from '../lib/intents.js';
 import { useDebounced, useInfiniteScroll, usePaginated } from '../lib/hooks.js';
 
 // ====================== ROUTING (hash based) =================================
 //   #/              feed           #/tag/<tag>     feed filtered by hashtag
 //   #/u/<username>  profile        #/market  #/stores  #/store/<id>   #/admin (staff)
+//   #/post/<id>     a single post with its comments (from notifications / saved items)
 function parseHash() {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   switch (parts[0]) {
@@ -32,6 +33,7 @@ function parseHash() {
     case 'market': return { view: 'marketplace' };
     case 'stores': return { view: 'stores' };
     case 'store':  return { view: 'store', param: parts[1] };
+    case 'post':   return { view: 'post', param: parts[1] };
     case 'admin':  return { view: 'admin' };
     case 'reset':  return { view: 'reset', param: parts[1] };
     default:       return { view: 'feed', param: null };
@@ -45,6 +47,7 @@ function hashFor(view, param) {
   if (view === 'marketplace') return '#/market';
   if (view === 'stores') return '#/stores';
   if (view === 'store') return `#/store/${enc(param)}`;
+  if (view === 'post') return `#/post/${enc(param)}`;
   if (view === 'admin') return '#/admin';
   if (view === 'reset') return `#/reset/${enc(param)}`;
   return '#/';
@@ -296,6 +299,29 @@ function ComposerBtn({ icon, label, accent, onClick }) {
                        (accent ? "text-rust-700" : "text-slate-600")}>
       {icon}<span className="hidden sm:inline">{label}</span>
     </button>
+  );
+}
+
+// ====================== SINGLE POST ==========================================
+function SinglePost({ postId, onOpenProfile, onPickTag, onView }) {
+  const [post, setPost] = useState(null);
+  const [error, setError] = useState(null);
+  const load = useCallback(() => {
+    setError(null);
+    api.post(postId).then(setPost).catch(e => setError(e.message));
+  }, [postId]);
+  useEffect(load, [load]);
+
+  return (
+    <div className="space-y-4">
+      <button onClick={() => onView('feed')} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-rust-700">
+        <I.ArrowRight size={16} /> חזרה לפיד
+      </button>
+      {error && <ErrorRow message={error} onRetry={load} />}
+      {!post && !error && <Spinner />}
+      {post && <PostCards.PostCard post={post} openComments onOpenProfile={onOpenProfile} onPickTag={onPickTag}
+                                   onDeleted={() => onView('feed')} />}
+    </div>
   );
 }
 
@@ -576,11 +602,12 @@ export function App() {
   const [listingsVersion, setListingsVersion] = useState(0);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerMode, setComposerMode] = useState('project');
+  const [sharing, setSharing] = useState(null);           // post being shared in the composer
   const [createdPosts, setCreatedPosts] = useState([]);  // published this session
-  const unreadNotifications = user ? HUB_DATA.NOTIFICATIONS.filter(n => !n.read).length : 0;
 
   // Buttons deep inside posts (♥, comment) ask for the login dialog via an event
   useEffect(() => {
@@ -595,7 +622,7 @@ export function App() {
   // "New message" alerts without a refresh: poll the unread count while logged in
   const lastAlerted = useRef(null);
   useEffect(() => {
-    if (!user) { setUnreadMessages(0); lastAlerted.current = null; return undefined; }
+    if (!user) { setUnreadMessages(0); setUnreadNotifications(0); lastAlerted.current = null; return undefined; }
     let alive = true;
     const check = () => api.unreadMessages().then(r => {
       if (!alive) return;
@@ -607,8 +634,11 @@ export function App() {
       if (latest) lastAlerted.current = Math.max(lastAlerted.current ?? 0, latest.id);
       else if (lastAlerted.current === null) lastAlerted.current = 0;
     }).catch(() => {});
+    const checkNotifications = () => api.unreadNotifications()
+      .then(n => { if (alive) setUnreadNotifications(n); }).catch(() => {});
     check();
-    const timer = setInterval(check, MESSAGE_POLL_MS);
+    checkNotifications();
+    const timer = setInterval(() => { check(); checkNotifications(); }, MESSAGE_POLL_MS);
     return () => { alive = false; clearInterval(timer); };
   }, [user]);
   const messagesOpenRef = useRef(false);
@@ -628,7 +658,21 @@ export function App() {
   });
   // "Buy" / "Lend" on a listing → private chat with the seller, pre-filled with an inquiry
   const handleContactSeller = (listing) => handleOpenMessages(listing.seller.username, inquiryText(listing), listing);
-  const handleOpenComposer = requireAuth((mode = 'project') => { setComposerMode(mode); setComposerOpen(true); });
+  const handleOpenComposer = requireAuth((mode = 'project') => { setSharing(null); setComposerMode(mode); setComposerOpen(true); });
+
+  // "Share" / "Contact the maker" buttons inside post cards (see lib/intents.js)
+  const intents = useRef({});
+  intents.current = {
+    share: requireAuth((post) => { setSharing(post); setComposerMode('project'); setComposerOpen(true); }),
+    message: (username) => handleOpenMessages(username),
+  };
+  useEffect(() => {
+    const onShare = (e) => intents.current.share(e.detail);
+    const onMessage = (e) => intents.current.message(e.detail);
+    window.addEventListener(SHARE_EVENT, onShare);
+    window.addEventListener(MESSAGE_EVENT, onMessage);
+    return () => { window.removeEventListener(SHARE_EVENT, onShare); window.removeEventListener(MESSAGE_EVENT, onMessage); };
+  }, []);
 
   const handleCreated = (post) => {
     setCreatedPosts(arr => [post, ...arr]);
@@ -653,7 +697,7 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onPickTag={handlePickTag}
         unreadMessages={messagesOpen ? 0 : unreadMessages}
-        unreadNotifications={notifsOpen ? 0 : unreadNotifications} />
+        unreadNotifications={unreadNotifications} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 lg:py-6">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
@@ -671,6 +715,8 @@ export function App() {
                                                          onView={(v) => navigate(v)} onSign={handleSign} />}
               {view === 'reset'       && <ResetPassword key={param} token={param} onLogin={(m) => setAuthMode(m)}
                                                         onView={(v) => navigate(v)} />}
+              {view === 'post'        && <SinglePost key={param} postId={param} onOpenProfile={handleOpenProfile}
+                                                     onPickTag={handlePickTag} onView={(v) => navigate(v)} />}
               {view === 'admin'       && <AdminDashboard onOpenProfile={handleOpenProfile} onView={(v) => navigate(v)} />}
               {view === 'profile'     && <Profile key={param} username={param} onOpenProfile={handleOpenProfile} onSign={handleSign}
                                                   onOpenMessages={handleOpenMessages} onView={(v) => navigate(v)} onPickTag={handlePickTag}
@@ -678,7 +724,8 @@ export function App() {
             </>}
           </div>
           <div className="hidden lg:block">
-            <div className="sticky top-20">
+            {/* taller than the screen → scrolls on its own, so the bottom (hot tags) is reachable */}
+            <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain pb-2 -mx-1 px-1 sidebar-scroll">
               <SECTIONS.Sidebar onOpenProfile={handleOpenProfile} onPickTag={handlePickTag} onSign={handleSign}
                                 refreshKey={createdPosts.length} />
             </div>
@@ -686,7 +733,7 @@ export function App() {
         </div>
       </main>
 
-      <PostComposer open={composerOpen} mode={composerMode} onClose={() => setComposerOpen(false)}
+      <PostComposer open={composerOpen} mode={composerMode} sharedPost={sharing} onClose={() => setComposerOpen(false)}
                     onCreated={handleCreated} onListingCreated={handleListingCreated} />
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
       {settingsOpen && user && <EditProfileModal onClose={() => setSettingsOpen(false)} />}
@@ -696,8 +743,10 @@ export function App() {
         onOpenSaved={() => { requireAuth(() => setSavedOpen(true))(); setMobileMenu(false); }} />
       <MessagesPanel open={messagesOpen} onClose={() => { setMessagesOpen(false); setDmTarget(null); }}
                      initial={dmTarget} onUnreadChange={setUnreadMessages} />
-      <NotificationsPanel open={notifsOpen} onClose={() => setNotifsOpen(false)} />
-      <SavedPanel open={savedOpen} onClose={() => setSavedOpen(false)} />
+      <NotificationsPanel open={notifsOpen} onClose={() => setNotifsOpen(false)} onUnreadChange={setUnreadNotifications}
+                          onOpenPost={(id) => navigate('post', id)} onOpenProfile={handleOpenProfile} />
+      <SavedPanel open={savedOpen} onClose={() => setSavedOpen(false)}
+                  onOpenPost={(id) => navigate('post', id)} onContact={handleContactSeller} />
       <ReportHost />
       <Toaster />
     </div>

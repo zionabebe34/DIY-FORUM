@@ -10,14 +10,14 @@ Talk to the user in Hebrew; they work section by section and run `git commit` th
   Blueprints in `backend/routes/`. Schema in `schema.sql`; `seed.py` is **non-destructive** (adds missing tables/columns via
   `COLUMN_MIGRATIONS`, adds demo data only if missing); `./start.sh --reset` wipes (asks "yes"). `manage.py set-role <user> admin`.
 - `frontend/` Vite + React 18 + Tailwind 3 + TipTap. Components converted from a Claude Design export (originals in `design/`).
-  Hash routing in `components/App.jsx` (`#/u/<user>`, `#/tag/x`, `#/market`, `#/stores`, `#/store/<id>`, `#/admin`, `#/reset/<token>`).
+  Hash routing in `components/App.jsx` (`#/u/<user>`, `#/tag/x`, `#/market`, `#/stores`, `#/store/<id>`, `#/post/<id>`, `#/admin`, `#/reset/<token>`).
   API client + adapters in `src/lib/api.js`.
 - API on **port 5050** (5001 is taken by another app of the user's); Vite on 5173 proxies `/api` and `/uploads`.
 - Run everything: `./start.sh`. Mail: `MAIL_BACKEND=smtp` with Gmail app password in `backend/.env` (works); `console` prints emails.
 
 ## Tests (keep ≥ 85% — course requirement)
-- Backend: `cd backend && .venv/bin/python -m pytest` → 70 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
-- Frontend: `cd frontend && npm run coverage` → 87 tests, 98%. Runs the whole app against an in-memory fake API
+- Backend: `cd backend && .venv/bin/python -m pytest` → 78 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
+- Frontend: `cd frontend && npm run coverage` → 103 tests, 98%. Runs the whole app against an in-memory fake API
   (`src/test/fakeServer.js` — keep it in sync when adding endpoints; `server.fetch.failNext = 'METHOD /path'` simulates one error).
 
 ## Status
@@ -26,6 +26,11 @@ Done:
 - Part 2: a. password reset by email (Gmail SMTP) · b. likes + comments · e.i–ii roles, reports, admin dashboard, bans · f. tests ≥ 85%.
 - Extra (counts toward part 3c): real private messages with unread polling + "new message" toast; marketplace listings
   ("buy/lend" opens a DM with the seller); store reviews (review creates the store). Profile cover/avatar overlap fixed.
+- Real notifications (`notifications.py` helpers called from the routes: like/comment/reply/@mention/follow/save + welcome;
+  undo deletes them; bell polls `/api/notifications/unread`) and saved items (posts + listings, `src/lib/saved.js`
+  keeps cards in sync via the `hh:saved` event). `seed.py` backfills notifications from existing activity.
+- Share posts (`posts.shared_post_id`, composer `sharedPost` mode, quoted preview) and "contact the maker" — card
+  buttons fire window events from `src/lib/intents.js` that App handles. Sticky sidebar scrolls on its own.
 
 Remaining (user's order, ask before starting):
 - Part 2 steps 3–6 (deferred by the user): AI layer (provider not chosen yet — ask), auto-correct / suggested posts /
@@ -34,7 +39,6 @@ Remaining (user's order, ask before starting):
 - Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — user said AWS goes last.
 - Part 3: choose 3 optional features (likely: responsive design — mostly done; recommendation engine — suggested users done,
   trending needs a 24h window; DMs done; Docker comes with the AWS deploy).
-- Still mock data from the design: notifications panel and saved items.
 
 ## Gotchas
 - The user's MySQL runs as a macOS system service; never print secrets from `backend/.env`.

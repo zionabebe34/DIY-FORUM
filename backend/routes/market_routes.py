@@ -60,12 +60,18 @@ def list_listings():
     rows = query(f"{_SELECT} WHERE {' AND '.join(where)} ORDER BY l.id DESC LIMIT %s", (*params, limit + 1))
     has_more = len(rows) > limit
     rows = rows[:limit]
+    me, saved = current_user(), set()
+    if me and rows:
+        marks = ', '.join(['%s'] * len(rows))
+        saved = {r['listing_id'] for r in query(
+            f'SELECT listing_id FROM saved_listings WHERE user_id = %s AND listing_id IN ({marks})',
+            (me['id'], *[r['id'] for r in rows]))}
     counts = query(f"""SELECT COUNT(*) AS all_count, COALESCE(SUM(l.listing_type = 'sale'), 0) AS sale,
                               COALESCE(SUM(l.listing_type = 'lend'), 0) AS lend
                        FROM listings l JOIN users u ON u.id = l.seller_id WHERE {' AND '.join(base_where)}""",
                    base_params, one=True)
     return jsonify({
-        'items': [serialize(r) for r in rows],
+        'items': [{**serialize(r), 'saved_by_me': r['id'] in saved} for r in rows],
         'next_cursor': rows[-1]['id'] if has_more else None,
         'counts': {'all': int(counts['all_count']), 'sale': int(counts['sale']), 'lend': int(counts['lend'])},
     })

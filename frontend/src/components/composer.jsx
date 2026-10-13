@@ -6,12 +6,14 @@ import { RichEditor } from './RichEditor.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { api } from '../lib/api.js';
 import { CATEGORY_OPTIONS } from './market.jsx';
+import { PostCards } from './posts.jsx';
 // Full post composer (Hebrew) — opens as a modal-style sheet
 const { useState: useStateC, useRef: useRefC, useEffect: useEffectC } = React;
 
 const PLACEHOLDER_BGS = ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'];
 
-function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'project' }) {
+// `sharedPost` → a "share" post: a few words + a preview of that post (no type tabs / images)
+function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'project', sharedPost = null }) {
   const { user } = useAuth();
   const [bodyHtml, setBodyHtml] = useStateC('');   // rich text (project / tutorial)
   const [bodyText, setBodyText] = useStateC('');
@@ -40,14 +42,14 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
   // reset on open
   useEffectC(() => {
     if (open) {
-      setKind(mode);
+      setKind(sharedPost ? 'project' : mode);
       setText(''); setTagInput(''); setTags([]); setMedia([]);
       setBodyHtml(''); setBodyText(''); setError(''); setSubmitting(false); setOpenCount(c => c + 1);
       setSteps([{ title: '', note: '', thumb: 'ph-wood' }]);
       setTitle(''); setPrice(''); setCond('יד שנייה — במצב טוב');
       setListingType('sale'); setDailyPrice(''); setWeeklyPrice(''); setDeposit(''); setCategory('hand');
     }
-  }, [open, mode]);
+  }, [open, mode, sharedPost]);
 
   // Release object-URL previews of removed / published images
   const mediaRef = useRefC(media);
@@ -127,6 +129,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
   const removeStep = (i) => setSteps(arr => arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i));
 
   const canPublish = (() => {
+    if (sharedPost)          return true;           // the shared post is the content; words are optional
     if (kind === 'project')  return bodyText.trim().length > 0 || media.length > 0;
     if (kind === 'tutorial') return title.trim() && steps.some(s => s.title.trim());
     if (kind === 'tool') {
@@ -173,6 +176,8 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
     if (kind === 'tutorial') {
       form.append('title', title);
       form.append('steps', JSON.stringify(steps.filter(s => s.title.trim())));
+    } else if (sharedPost) {
+      form.append('shared_post_id', sharedPost.id);
     } else {
       media.forEach(m => form.append('images', m.file, m.name));
     }
@@ -203,7 +208,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
             <div className="flex items-center gap-3 min-w-0">
               {user && <UI.Avatar person={user} size={40}/>}
               <div>
-                <h3 className="font-display font-bold text-xl text-slate-900">פוסט חדש</h3>
+                <h3 className="font-display font-bold text-xl text-slate-900">{sharedPost ? 'שיתוף פוסט' : 'פוסט חדש'}</h3>
                 <p className="text-xs text-slate-500">מפרסם בתור <b>{user?.name}</b></p>
               </div>
             </div>
@@ -211,7 +216,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
           </div>
 
           {/* Type tabs */}
-          <div className="px-4 pt-3">
+          {!sharedPost && <div className="px-4 pt-3">
             <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
               {tabs.map(t => (
                 <button key={t.id} onClick={() => setKind(t.id)}
@@ -221,7 +226,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Body */}
           <div className="p-4 space-y-3">
@@ -344,9 +349,13 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
                 key={kind}
                 resetKey={openCount}
                 minHeight={kind === 'tutorial' ? '3.5rem' : '7rem'}
-                placeholder={kind === 'project' ? 'מה עשית היום? ספר על התהליך — מה הלך חלק, איפה התקעת…' : 'בקיצור — מה ילמדו פה?'}
+                placeholder={sharedPost ? 'מה דעתך? הוסיפו כמה מילים על הפוסט (לא חובה)…'
+                             : kind === 'project' ? 'מה עשית היום? ספר על התהליך — מה הלך חלק, איפה התקעת…' : 'בקיצור — מה ילמדו פה?'}
                 onChange={(html, plain) => { setBodyHtml(html); setBodyText(plain); }} />
             )}
+
+            {/* sharing a share quotes the original (the server does the same) */}
+            {sharedPost && <PostCards.SharedPostEmbed original={sharedPost.sharedPost || sharedPost} className="pointer-events-none" />}
 
             {/* Tutorial steps */}
             {kind === 'tutorial' && (
@@ -379,7 +388,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
             )}
 
             {/* Media dropzone */}
-            {kind !== 'tutorial' && (
+            {kind !== 'tutorial' && !sharedPost && (
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}

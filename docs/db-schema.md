@@ -26,6 +26,15 @@ erDiagram
     USERS ||--o{ STORE_REVIEWS  : "writes"
     USERS ||--o{ REPORTS     : "reports (reporter)"
     USERS ||--o{ REPORTS     : "is reported (target_user)"
+    USERS ||--o{ SAVED_POSTS : "bookmarks"
+    POSTS ||--o{ SAVED_POSTS : "saved in"
+    USERS ||--o{ SAVED_LISTINGS : "bookmarks"
+    LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
+    POSTS |o--o{ NOTIFICATIONS : "about"
+    POSTS |o--o{ POSTS : "shared in"
+    COMMENTS |o--o{ NOTIFICATIONS : "about"
 
     USERS {
         int id PK
@@ -67,6 +76,7 @@ erDiagram
         text body_html "sanitized rich text"
         varchar location
         json steps "tutorial steps"
+        int shared_post_id "share post: the post it quotes (no FK)"
         datetime created_at
     }
     POST_IMAGES {
@@ -165,6 +175,27 @@ erDiagram
         datetime created_at
         datetime resolved_at
     }
+    SAVED_POSTS {
+        int user_id PK, FK
+        int post_id PK, FK
+        datetime created_at
+    }
+    SAVED_LISTINGS {
+        int user_id PK, FK
+        int listing_id PK, FK
+        datetime created_at
+    }
+    NOTIFICATIONS {
+        int id PK
+        int user_id FK "recipient"
+        int actor_id FK "NULL = system message"
+        enum kind "like | comment | reply | mention | follow | save | share | system"
+        int post_id FK
+        int comment_id FK
+        varchar text "comment snippet / system text"
+        datetime created_at
+        datetime read_at "NULL = unread"
+    }
 ```
 
 ## Relationships
@@ -182,6 +213,9 @@ erDiagram
 | User ↔ User (messages) | many-to-many via `messages` | `sender_id`, `recipient_id`; a conversation = all messages between two users; `read_at` drives unread counts |
 | Store → Reviews | one-to-many | `store_reviews.store_id`; `UNIQUE(store_id, author_id)` = one review per user per store (re-reviewing updates it). Stores are created by the first review that names them (`UNIQUE(name, area)`) |
 | Report → target | polymorphic | `reports(target_type, target_id)` points at a post, comment or user; `snapshot` keeps the text so a case stays readable after the content is deleted |
+| User ↔ Post / Listing (saved) | many-to-many | `saved_posts(user_id, post_id)`, `saved_listings(user_id, listing_id)` — composite PK = save once; private to the user |
+| User → Notifications | one-to-many | `notifications.user_id` (recipient), `actor_id` (who did it, NULL = system); `post_id` / `comment_id` cascade, so deleting the content removes its notifications |
+| Post → Shares | one-to-many (self) | `posts.shared_post_id → posts.id` without a FK, so when the original is deleted the share keeps the id and shows "the original was removed"; sharing a share quotes the original |
 | Comment → Replies | one-to-many (self) | `comments.parent_id → comments.id`; one level of nesting (a reply to a reply joins the top-level thread) |
 
 All foreign keys use `ON DELETE CASCADE`, so deleting a user removes their sessions, posts, follows, likes, comments, images and tag links.
@@ -193,5 +227,6 @@ All foreign keys use `ON DELETE CASCADE`, so deleting a user removes their sessi
 - **Password reset**: the emailed link carries a random token; only its SHA-256 is stored, it expires after 30 minutes, works once, only the newest link is valid, max 3 emails per hour, and a successful reset deletes all of the user's sessions. `/api/auth/forgot` answers identically for unknown emails.
 - **Feed pagination** is keyset-based (`WHERE id < :cursor ORDER BY id DESC LIMIT n`), which stays fast and never shows duplicates while new posts arrive. `idx_author (author_id, id)` serves the per-user feed and the "following" feed.
 - **Moderation**: `users.role` (user / moderator / admin) gates the dashboard; banning sets `is_banned`, deletes the user's sessions and hides their content everywhere. Columns added after the first release are applied by `seed.py` (`COLUMN_MIGRATIONS`) without losing data.
+- **Notifications** are written in the same transaction as the action (like, comment, reply, @mention, follow, save); undoing the action (unlike / unfollow / unsave) deletes the notification. Nobody is notified about their own actions, and notifications from banned users are hidden. The bell polls `/api/notifications/unread`.
 - **Timestamps** are stored in UTC; the client renders "time ago".
 - **Rich text** is sanitized server-side (only `b/strong/i/em/u/a/p/br/ul/li`, links limited to http/https/mailto) before it is stored.

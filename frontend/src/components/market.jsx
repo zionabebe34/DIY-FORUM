@@ -9,6 +9,7 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useInfiniteScroll, usePaginated } from '../lib/hooks.js';
 import { toast } from '../lib/toast.jsx';
+import { useSaved } from '../lib/saved.js';
 
 const CATEGORIES = [
   { id: 'all',      label: 'הכל' },
@@ -144,6 +145,7 @@ export function MarketplaceTeaser({ onOpenProfile, onContact, onView }) {
 export function MarketCard({ item, compact, onOpenProfile, onContact, onDeleted }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [saved, toggleSave] = useSaved('listing', item.id, item.savedByMe);
   const isLend = item.listingType === 'lend';
   const mine = user && user.username === item.seller.username;
   const canRemove = user && (mine || user.isStaff) && onDeleted;
@@ -168,6 +170,14 @@ export function MarketCard({ item, compact, onOpenProfile, onContact, onDeleted 
       <div className={"relative aspect-square " + (item.image ? 'bg-slate-100' : item.bg)}>
         {item.image && <img src={item.image} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
+        {!mine && (
+          <button onClick={toggleSave} aria-pressed={saved} aria-label={saved ? 'הסר משמורים' : 'שמור מודעה'}
+            title={saved ? 'הסר משמורים' : 'שמור מודעה'}
+            className={"absolute top-2 left-2 w-8 h-8 rounded-full grid place-items-center shadow-sm transition " +
+                       (saved ? "bg-rust-600 text-white hover:bg-rust-700" : "bg-white/95 text-slate-700 hover:bg-white")}>
+            <I.Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />
+          </button>
+        )}
         <span className={"absolute top-2 right-2 pill shadow-sm text-[10px] " +
                          (isLend ? "bg-emerald-600 text-white" : "bg-white/95 backdrop-blur text-slate-700")}>
           {isLend ? <><I.Wrench size={10} strokeWidth={2.5}/> להשאלה</> : <><I.Tag size={10} strokeWidth={2.5}/> {condLabel}</>}

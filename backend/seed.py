@@ -241,6 +241,7 @@ COLUMN_MIGRATIONS = [
     ('users', 'is_banned', 'BOOLEAN NOT NULL DEFAULT FALSE'),
     ('users', 'ban_reason', 'VARCHAR(300) NULL'),
     ('users', 'banned_at', 'DATETIME NULL'),
+    ('posts', 'shared_post_id', 'INT NULL'),
 ]
 
 
@@ -251,6 +252,9 @@ def migrate_columns(cur, db_name):
                     (db_name, table, column))
         if not cur.fetchall():
             cur.execute(f'ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}')
+    # ENUMs that gained values after release (MODIFY is a no-op when already up to date)
+    cur.execute("""ALTER TABLE notifications MODIFY kind
+                   ENUM('like', 'comment', 'reply', 'mention', 'follow', 'save', 'share', 'system') NOT NULL""")
 
 def connect(database=None):
     return mysql.connector.connect(
@@ -428,6 +432,23 @@ def seed_extras(db_name):
                         (ids[sender], ids[recipient], body, listing_id, now - timedelta(minutes=(len(MESSAGES) - i) * 37),
                          now if i < len(MESSAGES) - 2 else None))
         added.append(f'{len(MESSAGES)} messages')
+
+    cur.execute("SELECT COUNT(*) FROM notifications WHERE kind IN ('like', 'follow', 'comment')")
+    if cur.fetchone()[0] == 0:
+        # Backfill from the activity already in the database, so the bell isn't empty.
+        # Anything from the last two days stays unread.
+        cur.execute("""INSERT INTO notifications (user_id, actor_id, kind, post_id, created_at, read_at)
+                       SELECT p.author_id, l.user_id, 'like', p.id, l.created_at, l.created_at
+                       FROM post_likes l JOIN posts p ON p.id = l.post_id WHERE l.user_id <> p.author_id""")
+        cur.execute("""INSERT INTO notifications (user_id, actor_id, kind, created_at, read_at)
+                       SELECT followee_id, follower_id, 'follow', created_at, created_at FROM follows""")
+        cur.execute("""INSERT INTO notifications (user_id, actor_id, kind, post_id, comment_id, text, created_at, read_at)
+                       SELECT p.author_id, c.author_id, 'comment', p.id, c.id, LEFT(c.body, 140), c.created_at, c.created_at
+                       FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.author_id <> p.author_id""")
+        cur.execute("""UPDATE notifications SET read_at = NULL
+                       WHERE kind IN ('like', 'follow', 'comment') AND created_at >= UTC_TIMESTAMP() - INTERVAL 2 DAY""")
+        cur.execute("SELECT COUNT(*) FROM notifications WHERE kind IN ('like', 'follow', 'comment')")
+        added.append(f'{cur.fetchone()[0]} notifications')
 
     conn.commit()
     conn.close()

@@ -107,7 +107,37 @@ def test_tag_filter_and_trending(make_user, client):
     assert len(client.get('/api/feed?tag=%23wood').get_json()['items']) == 3
     assert len(client.get('/api/feed?tag=metal').get_json()['items']) == 2
     trending = client.get('/api/tags/trending').get_json()['items']
-    assert trending[:2] == [{'tag': '#wood', 'posts': 3}, {'tag': '#metal', 'posts': 2}]
+    assert trending[:2] == [{'tag': '#wood', 'posts': 3, 'recent': 3}, {'tag': '#metal', 'posts': 2, 'recent': 2}]
+
+
+def test_trending_counts_every_post_but_ranks_by_this_week(make_user, set_role, client):
+    alice = make_user('alice')
+    bob = make_user('bob')
+    boss = make_user('boss')
+    set_role('boss', 'admin')
+    old_ids = [create(alice, body=f'old {i} #wood').get_json()['post']['id'] for i in range(4)]
+    create(alice, body='new #metal')
+    create(alice, body='new #metal')
+    create(bob, body='hidden soon #metal #wood')
+    # the #wood posts are a month old: they still count, but #metal is the one active this week
+    from tests.conftest import TEST_DB
+    from seed import connect
+    conn = connect(TEST_DB)
+    marks = ', '.join(['%s'] * len(old_ids))
+    conn.cursor().execute(f'UPDATE posts SET created_at = UTC_TIMESTAMP() - INTERVAL 30 DAY WHERE id IN ({marks})', old_ids)
+    conn.commit()
+    conn.close()
+
+    items = client.get('/api/tags/trending').get_json()['items']
+    assert items == [{'tag': '#metal', 'posts': 3, 'recent': 3}, {'tag': '#wood', 'posts': 5, 'recent': 1}]
+    assert client.get('/api/search?q=wood').get_json()['tags'] == [{'tag': 'wood', 'posts': 5}]
+
+    # a banned author's posts no longer count; a deleted post neither
+    boss.post('/api/admin/users/bob/ban')
+    alice.delete(f'/api/posts/{old_ids[0]}')
+    items = client.get('/api/tags/trending').get_json()['items']
+    assert items == [{'tag': '#metal', 'posts': 2, 'recent': 2}, {'tag': '#wood', 'posts': 3, 'recent': 0}]
+    assert client.get('/api/search?q=wood').get_json()['tags'] == [{'tag': 'wood', 'posts': 3}]
 
 
 def test_user_posts_and_single_post(make_user, client):

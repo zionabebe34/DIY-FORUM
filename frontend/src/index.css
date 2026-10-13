@@ -11,6 +11,9 @@
     /* Hide scrollbar on horizontal nav scroll on mobile */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Sticky sidebar: thin scrollbar, only visible while hovering it */
+    .sidebar-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+    .sidebar-scroll:hover { scrollbar-color: rgb(203 213 225) transparent; }
 
     /* Subtle blueprint grid (kept for hero cards) */
     .blueprint {

@@ -14,7 +14,7 @@
 </head>
 <body>
 <h1>HandyHub — Database Schema (MySQL)</h1>
-<p>Users, sessions, follow graph, posts, images, hashtags, likes, comments, moderation reports, marketplace, store reviews and private messages. Source: backend/schema.sql</p>
+<p>Users, sessions, follow graph, posts, images, hashtags, likes, comments, moderation reports, marketplace, store reviews, private messages, saved items and notifications. Source: backend/schema.sql</p>
 <div class="wrap"><pre class="mermaid">
 erDiagram
     USERS ||--o{ SESSIONS    : "logs in with"
@@ -38,6 +38,15 @@ erDiagram
     USERS ||--o{ STORE_REVIEWS  : "writes"
     USERS ||--o{ REPORTS     : "reports (reporter)"
     USERS ||--o{ REPORTS     : "is reported (target_user)"
+    USERS ||--o{ SAVED_POSTS : "bookmarks"
+    POSTS ||--o{ SAVED_POSTS : "saved in"
+    USERS ||--o{ SAVED_LISTINGS : "bookmarks"
+    LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
+    POSTS |o--o{ NOTIFICATIONS : "about"
+    POSTS |o--o{ POSTS : "shared in"
+    COMMENTS |o--o{ NOTIFICATIONS : "about"
 
     USERS {
         int id PK
@@ -79,6 +88,7 @@ erDiagram
         text body_html "sanitized rich text"
         varchar location
         json steps "tutorial steps"
+        int shared_post_id "share post: the post it quotes (no FK)"
         datetime created_at
     }
     POST_IMAGES {
@@ -176,6 +186,27 @@ erDiagram
         int resolved_by FK
         datetime created_at
         datetime resolved_at
+    }
+    SAVED_POSTS {
+        int user_id PK, FK
+        int post_id PK, FK
+        datetime created_at
+    }
+    SAVED_LISTINGS {
+        int user_id PK, FK
+        int listing_id PK, FK
+        datetime created_at
+    }
+    NOTIFICATIONS {
+        int id PK
+        int user_id FK "recipient"
+        int actor_id FK "NULL = system message"
+        enum kind "like | comment | reply | mention | follow | save | share | system"
+        int post_id FK
+        int comment_id FK
+        varchar text "comment snippet / system text"
+        datetime created_at
+        datetime read_at "NULL = unread"
     }
 </pre></div>
 <script type="module">

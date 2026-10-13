@@ -6,6 +6,7 @@ from mysql.connector import errors as mysql_errors
 
 from auth import current_user, login_required
 from db import commit, execute, query
+from notifications import notify, unnotify
 from utils import COVERS, UploadError, parse_json_list, private_user, public_user, save_image
 
 bp = Blueprint('users', __name__, url_prefix='/api/users')
@@ -185,6 +186,7 @@ def follow(username):
         return jsonify({'error': 'אי אפשר לעקוב אחרי עצמך'}), 400
     try:
         execute('INSERT INTO follows (follower_id, followee_id) VALUES (%s, %s)', (me['id'], target['id']))
+        notify(target['id'], me['id'], 'follow')
         commit()
     except mysql_errors.IntegrityError:
         pass  # already following — follow is idempotent
@@ -199,6 +201,7 @@ def unfollow(username):
     if target is None:
         return jsonify({'error': 'המשתמש לא נמצא'}), 404
     execute('DELETE FROM follows WHERE follower_id = %s AND followee_id = %s', (me['id'], target['id']))
+    unnotify(target['id'], me['id'], 'follow')
     commit()
     return jsonify({'is_following': False, 'followers_count': _followers_count(target['id'])})
 

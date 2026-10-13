@@ -58,8 +58,11 @@ CREATE TABLE IF NOT EXISTS posts (
   body_html   TEXT         NOT NULL,                    -- sanitized rich text (b / i / links)
   location    VARCHAR(80)  NULL,
   steps       JSON         NULL,                        -- tutorials: [{title, note, thumb}]
+  shared_post_id INT       NULL,                        -- a "share" post quotes another post (no FK: a deleted
+                                                        -- original keeps its id so the share shows "removed")
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_author (author_id, id),
+  INDEX idx_shared (shared_post_id),
   FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -214,4 +217,45 @@ CREATE TABLE IF NOT EXISTS messages (
   FOREIGN KEY (sender_id)    REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (listing_id)   REFERENCES listings(id) ON DELETE SET NULL
+);
+
+-- ── Saved items ("bookmarks"): posts and marketplace listings ───────────────
+CREATE TABLE IF NOT EXISTS saved_posts (
+  user_id     INT      NOT NULL,
+  post_id     INT      NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, post_id),
+  INDEX idx_post (post_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS saved_listings (
+  user_id     INT      NOT NULL,
+  listing_id  INT      NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, listing_id),
+  INDEX idx_listing (listing_id),
+  FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE
+);
+
+-- ── Notifications (likes, comments, replies, @mentions, follows, saves) ─────
+-- Deleting the post / comment / actor removes the notifications about it.
+CREATE TABLE IF NOT EXISTS notifications (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT          NOT NULL,                    -- who receives it
+  actor_id    INT          NULL,                        -- who did it (NULL = system message)
+  kind        ENUM('like', 'comment', 'reply', 'mention', 'follow', 'save', 'share', 'system') NOT NULL,
+  post_id     INT          NULL,
+  comment_id  INT          NULL,
+  text        VARCHAR(300) NULL,                        -- comment snippet / system message
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at     DATETIME     NULL,
+  INDEX idx_user (user_id, id),
+  INDEX idx_unread (user_id, read_at),
+  FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  FOREIGN KEY (actor_id)   REFERENCES users(id)    ON DELETE CASCADE,
+  FOREIGN KEY (post_id)    REFERENCES posts(id)    ON DELETE CASCADE,
+  FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
 );

@@ -46,6 +46,9 @@ export function createFakeServer() {
       { id: 1, from: 3, to: 2, body: 'Hi Bob, still need the welder?', listing_id: 1, read: false },
       { id: 2, from: 2, to: 1, body: 'Hello Alice', listing_id: null, read: true },
     ],
+    saves: [],            // { user, post }
+    savedListings: [],    // { user, listing }
+    notifications: [],    // { id, user, actor, kind, post, text, read }
     sessionUser: null,    // id of the logged-in user (stands in for the cookie)
     calls: [],            // [method, path] log for assertions
   };
@@ -67,6 +70,12 @@ export function createFakeServer() {
   db.comments.push({ id: id(), post_id: 25, author: 3, parent_id: null, body: 'Great job!', created_at: iso(30) });
   db.comments.push({ id: id(), post_id: 25, author: 1, parent_id: db.comments[0].id, body: 'Thanks!', created_at: iso(20) });
   db.likes.push({ user: 2, post: 25 }, { user: 3, post: 25 });
+  db.notifications.push(
+    { id: id(), user: 1, actor: null, kind: 'system', post: null, text: 'Welcome to HandyHub', read: true },
+    { id: id(), user: 1, actor: 2, kind: 'follow', post: null, text: null, read: false },
+    { id: id(), user: 1, actor: 3, kind: 'comment', post: 25, text: 'Great job!', read: false },
+    { id: id(), user: 1, actor: 4, kind: 'like', post: 22, text: null, read: false },
+  );
 
   // ── helpers ────────────────────────────────────────────────────────────
   const me = () => db.users.find(u => u.id === db.sessionUser && !u.is_banned) || null;
@@ -78,12 +87,17 @@ export function createFakeServer() {
   });
   const priv = (u) => ({ ...pub(u), email: u.email });
   const following = (a, b) => db.follows.some(f => f.follower === a && f.followee === b);
-  const postOut = (p) => {
+  const postOut = (p, embed = true) => {
     const u = db.users.find(x => x.id === p.author);
+    const original = p.shared_post_id && db.posts.find(x => x.id === p.shared_post_id);
     return {
+      shared_post_id: p.shared_post_id || null,
+      shared_post: embed && original && visible(original) ? postOut(original, false) : null,
       ...p, author: undefined, likes_count: db.likes.filter(l => l.post === p.id).length,
       comments_count: db.comments.filter(c => c.post_id === p.id).length,
       liked_by_me: !!me() && db.likes.some(l => l.post === p.id && l.user === me().id),
+      saves_count: db.saves.filter(x => x.post === p.id).length,
+      saved_by_me: !!me() && db.saves.some(x => x.post === p.id && x.user === me().id),
       author: { id: u.id, username: u.username, name: u.name, avatar_url: u.avatar_url, cover: u.cover,
                 verified: u.verified, is_agent: u.is_agent },
     };
@@ -102,7 +116,13 @@ export function createFakeServer() {
     const tag = (q.get('tag') || '').replace(/^#/, '');
     if (tag) items = items.filter(p => p.tags.includes('#' + tag));
     const pageItems = items.slice(0, limit);
-    return { items: pageItems.map(postOut), next_cursor: items.length > limit ? pageItems[pageItems.length - 1].id : null };
+    return { items: pageItems.map(p => postOut(p)), next_cursor: items.length > limit ? pageItems[pageItems.length - 1].id : null };
+  };
+  const notify = (user, actor, kind, post = null, text = null) => {
+    if (user !== actor) db.notifications.push({ id: id(), user, actor, kind, post, text, read: false });
+  };
+  const unnotify = (user, actor, kind, post = null) => {
+    db.notifications = db.notifications.filter(n => !(n.user === user && n.actor === actor && n.kind === kind && n.post === post));
   };
   const isStaff = (u) => u && (u.role === 'moderator' || u.role === 'admin');
 
@@ -171,11 +191,16 @@ export function createFakeServer() {
     const kind = form.get('kind') || 'project';
     const html = form.get('body') || '';
     const files = form.getAll('images');
-    if (kind === 'project' && !html.replace(/<[^>]+>/g, '').trim() && !files.length) return err(400, 'הפוסט ריק');
+    let shared = Number(form.get('shared_post_id')) || null;
+    if (shared) {
+      const original = db.posts.find(x => x.id === shared);
+      if (!original) return err(400, 'הפוסט ששיתפתם לא נמצא');
+      shared = original.shared_post_id || original.id;
+    } else if (kind === 'project' && !html.replace(/<[^>]+>/g, '').trim() && !files.length) return err(400, 'הפוסט ריק');
     const tags = JSON.parse(form.get('tags') || '[]').map(t => '#' + t.replace(/^#/, ''));
     const p = { id: id(), author: me().id, kind, title: form.get('title') || null, body_html: html, location: '',
                 steps: JSON.parse(form.get('steps') || '[]'), images: files.map((_, i) => `/uploads/new${i}.png`),
-                tags, created_at: iso() };
+                tags, shared_post_id: shared, created_at: iso() };
     db.posts.push(p);
     return ok({ post: postOut(p) }, 201);
   }));
@@ -188,12 +213,20 @@ export function createFakeServer() {
       .forEach(r => { r.status = 'resolved'; r.resolution = 'content_deleted'; r.resolved_by = me().username; });
     return ok({ ok: true });
   }));
+  on('GET', '/api/posts/(\\d+)', ([pid]) => {
+    const p = db.posts.find(x => x.id === +pid);
+    return p && visible(p) ? ok({ post: postOut(p) }) : err(404, 'הפוסט לא נמצא');
+  });
   on('POST', '/api/posts/(\\d+)/like', needLogin(([pid]) => {
-    if (!db.likes.some(l => l.post === +pid && l.user === me().id)) db.likes.push({ user: me().id, post: +pid });
+    if (!db.likes.some(l => l.post === +pid && l.user === me().id)) {
+      db.likes.push({ user: me().id, post: +pid });
+      notify(db.posts.find(p => p.id === +pid).author, me().id, 'like', +pid);
+    }
     return ok({ liked: true, likes_count: db.likes.filter(l => l.post === +pid).length });
   }));
   on('DELETE', '/api/posts/(\\d+)/like', needLogin(([pid]) => {
     db.likes = db.likes.filter(l => !(l.post === +pid && l.user === me().id));
+    unnotify(db.posts.find(p => p.id === +pid).author, me().id, 'like', +pid);
     return ok({ liked: false, likes_count: db.likes.filter(l => l.post === +pid).length });
   }));
   on('GET', '/api/posts/(\\d+)/comments', ([pid]) => ok({ items: db.comments.filter(c => c.post_id === +pid).map(commentOut) }));
@@ -204,6 +237,7 @@ export function createFakeServer() {
     const c = { id: id(), post_id: +pid, author: me().id, parent_id: parent ? (parent.parent_id || parent.id) : null,
                 body: body.body.trim(), created_at: iso() };
     db.comments.push(c);
+    notify(db.posts.find(p => p.id === +pid).author, me().id, 'comment', +pid, c.body);
     return ok({ comment: commentOut(c) }, 201);
   }));
   on('DELETE', '/api/comments/(\\d+)', needLogin(([cid]) => {
@@ -242,12 +276,13 @@ export function createFakeServer() {
   });
   on('POST', '/api/users/([^/]+)/follow', needLogin(([name]) => {
     const u = byName(name);
-    if (!following(me().id, u.id)) db.follows.push({ follower: me().id, followee: u.id });
+    if (!following(me().id, u.id)) { db.follows.push({ follower: me().id, followee: u.id }); notify(u.id, me().id, 'follow'); }
     return ok({ is_following: true, followers_count: db.follows.filter(f => f.followee === u.id).length });
   }));
   on('DELETE', '/api/users/([^/]+)/follow', needLogin(([name]) => {
     const u = byName(name);
     db.follows = db.follows.filter(f => !(f.follower === me().id && f.followee === u.id));
+    unnotify(u.id, me().id, 'follow');
     return ok({ is_following: false, followers_count: db.follows.filter(f => f.followee === u.id).length });
   }));
   on('GET', '/api/users/([^/]+)', ([name]) => {
@@ -263,12 +298,17 @@ export function createFakeServer() {
   });
 
   // discovery
-  on('GET', '/api/tags/trending', () => ok({ items: [{ tag: '#woodwork', posts: 12 }, { tag: '#welding', posts: 7 }] }));
+  on('GET', '/api/tags/trending', () => {
+    const counts = {};
+    db.posts.filter(visible).forEach(p => p.tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
+    return ok({ items: Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5)
+      .map(([tag, posts]) => ({ tag, posts, recent: posts })) });
+  });
   on('GET', '/api/search', (_, q) => {
     const term = (q.get('q') || '').toLowerCase();
     return ok({
       people: db.users.filter(u => u.username.includes(term) || u.name.toLowerCase().includes(term)).map(u => pub(u)),
-      posts: db.posts.filter(p => p.body_html.toLowerCase().includes(term)).slice(0, 2).map(postOut),
+      posts: db.posts.filter(p => p.body_html.toLowerCase().includes(term)).slice(0, 2).map(p => postOut(p)),
       tags: term.startsWith('w') ? [{ tag: 'woodwork', posts: 12 }] : [],
     });
   });
@@ -350,7 +390,8 @@ export function createFakeServer() {
   const listingOut = (l) => {
     const u = db.users.find(x => x.id === l.seller);
     return { ...l, seller: { id: u.id, username: u.username, name: u.name, avatar_url: u.avatar_url, verified: u.verified,
-                             is_agent: u.is_agent, location: u.location }, status: 'active', created_at: iso(5) };
+                             is_agent: u.is_agent, location: u.location }, status: 'active', created_at: iso(5),
+             saved_by_me: !!me() && db.savedListings.some(x => x.listing === l.id && x.user === me().id) };
   };
   on('GET', '/api/listings', (_, q) => {
     let list = db.listings.filter(l => !db.users.find(u => u.id === l.seller).is_banned);
@@ -379,6 +420,64 @@ export function createFakeServer() {
   on('DELETE', '/api/listings/(\\d+)', needLogin(([lid]) => {
     db.listings = db.listings.filter(l => l.id !== +lid);
     return ok({ ok: true });
+  }));
+
+  // saved items
+  on('POST', '/api/posts/(\\d+)/save', needLogin(([pid]) => {
+    const p = db.posts.find(x => x.id === +pid);
+    if (!p) return err(404, 'הפוסט לא נמצא');
+    if (!db.saves.some(x => x.post === p.id && x.user === me().id)) {
+      db.saves.push({ user: me().id, post: p.id });
+      notify(p.author, me().id, 'save', p.id);
+    }
+    return ok({ saved: true, saves_count: db.saves.filter(x => x.post === p.id).length });
+  }));
+  on('DELETE', '/api/posts/(\\d+)/save', needLogin(([pid]) => {
+    db.saves = db.saves.filter(x => !(x.post === +pid && x.user === me().id));
+    return ok({ saved: false, saves_count: db.saves.filter(x => x.post === +pid).length });
+  }));
+  on('POST', '/api/listings/(\\d+)/save', needLogin(([lid]) => {
+    if (!db.listings.some(l => l.id === +lid)) return err(404, 'המודעה לא נמצאה');
+    if (!db.savedListings.some(x => x.listing === +lid && x.user === me().id)) db.savedListings.push({ user: me().id, listing: +lid });
+    return ok({ saved: true });
+  }));
+  on('DELETE', '/api/listings/(\\d+)/save', needLogin(([lid]) => {
+    db.savedListings = db.savedListings.filter(x => !(x.listing === +lid && x.user === me().id));
+    return ok({ saved: false });
+  }));
+  on('GET', '/api/saved', needLogin(() => ok({
+    posts: [...db.saves].reverse().filter(x => x.user === me().id).map(x => db.posts.find(p => p.id === x.post))
+      .filter(p => p && visible(p)).map(p => postOut(p)),
+    listings: [...db.savedListings].reverse().filter(x => x.user === me().id)
+      .map(x => db.listings.find(l => l.id === x.listing)).filter(Boolean).map(listingOut),
+  })));
+
+  // notifications
+  const notificationOut = (n) => {
+    const a = n.actor && db.users.find(u => u.id === n.actor);
+    const p = n.post && db.posts.find(x => x.id === n.post);
+    return { id: n.id, kind: n.kind, text: n.text, created_at: iso(5), read: n.read, comment_id: null,
+             actor: a ? { id: a.id, username: a.username, name: a.name, avatar_url: a.avatar_url, verified: a.verified,
+                          is_agent: a.is_agent, location: a.location } : null,
+             post: p ? { id: p.id, kind: p.kind, title: p.title || p.body_html.replace(/<[^>]+>/g, '').slice(0, 80) } : null };
+  };
+  const myNotifications = () => db.notifications.filter(n => n.user === me().id &&
+    !(n.actor && db.users.find(u => u.id === n.actor).is_banned));
+  const unreadCount = () => myNotifications().filter(n => !n.read).length;
+  on('GET', '/api/notifications', needLogin((_, q) => {
+    let list = [...myNotifications()].sort((a, b) => b.id - a.id);
+    if (q.get('filter') === 'unread') list = list.filter(n => !n.read);
+    if (q.get('filter') === 'mentions') list = list.filter(n => ['comment', 'reply', 'mention'].includes(n.kind));
+    const before = Number(q.get('before') || 0);
+    if (before) list = list.filter(n => n.id < before);
+    const pageItems = list.slice(0, 30);
+    return ok({ items: pageItems.map(notificationOut), unread: unreadCount(),
+                next_cursor: list.length > 30 ? pageItems[pageItems.length - 1].id : null });
+  }));
+  on('GET', '/api/notifications/unread', needLogin(() => ok({ count: unreadCount() })));
+  on('POST', '/api/notifications/read', needLogin((_, __, body) => {
+    myNotifications().filter(n => !body.ids || body.ids.includes(n.id)).forEach(n => { n.read = true; });
+    return ok({ unread: unreadCount() });
   }));
 
   // stores
