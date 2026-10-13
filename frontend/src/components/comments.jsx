@@ -51,7 +51,7 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
   const report = (c) => openReport({ targetType: 'comment', targetId: c.id, label: `התגובה של ${c.author.name}` });
 
   return (
-    <section className="border-t hairline bg-cream/40 px-4 py-3 space-y-3" aria-label="תגובות">
+    <section className="border-t hairline bg-slate-50/70 px-4 py-3 space-y-3" aria-label="תגובות">
       {items === null && !error && <div className="text-xs text-slate-500">טוען תגובות…</div>}
       {error && <div className="text-xs text-rust-700">{error}</div>}
       {items && top.length === 0 && <div className="text-xs text-slate-500">אין תגובות עדיין — היו הראשונים להגיב.</div>}

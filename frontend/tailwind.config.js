@@ -1,36 +1,57 @@
 /** @type {import('tailwindcss').Config} */
-// Theme copied from the Claude Design mock-up (HandyHub.html).
+// Modern Studio theme for HandyHub (clean, crisp, maker-focused palette)
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       fontFamily: {
-        sans:    ['Assistant', 'ui-sans-serif', 'system-ui'],
-        display: ['"Frank Ruhl Libre"', 'Assistant', 'ui-serif'],
+        sans:    ['Assistant', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Rubik', 'Assistant', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono:    ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
       colors: {
-        // Cream paper background — also redefines `white` so all
-        // `bg-white` / `bg-white/85` / `text-white` flow as warm paper.
-        white: '#fbf6ec',
-        cream: '#fbf6ec',
+        // Modern Studio: crisp pure white surfaces & cards
+        white: '#ffffff',
+        cream: '#ffffff',
         pure:  '#ffffff',
-        // Saffron accent (class name `rust` kept from the original design)
+        // Modern Maker Vibrant Orange accent (replaces Claude terracotta rust)
         rust: {
-          50: '#fdf3e8', 100: '#fae0c4', 200: '#f4c293', 300: '#ee9d5e', 400: '#ea843f',
-          500: '#e8743b', 600: '#c8551d', 700: '#a8472b', 800: '#7d3520', 900: '#5b2614',
+          50:  '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          300: '#fdba74',
+          400: '#fb923c',
+          500: '#f97316',
+          600: '#ea580c',
+          700: '#c2410c',
+          800: '#9a3412',
+          900: '#7c2d12',
         },
-        // Forest-warm neutrals (class name `slate` kept)
+        // Modern cool neutral Slate palette (replaces murky Claude yellow-forest neutrals)
         slate: {
-          50: '#f4ecd9', 100: '#ebe1c8', 200: '#d8ccaf', 300: '#b8ad8f', 400: '#8b9489',
-          500: '#5d7068', 600: '#42584e', 700: '#2d443a', 800: '#20342c', 900: '#162a23',
+          50:  '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a',
         },
-        // Dijon (secondary accent)
-        dijon: { 300: '#e6d09a', 400: '#dcc282', 500: '#d4b96a', 600: '#b89a48', 700: '#8e7530' },
+        // Modern energetic amber/gold accent
+        dijon: {
+          300: '#fde047',
+          400: '#facc15',
+          500: '#eab308',
+          600: '#ca8a04',
+          700: '#a16207',
+        },
       },
       boxShadow: {
-        card: '0 1px 0 0 rgb(22 42 35 / 0.04), 0 1px 3px 0 rgb(22 42 35 / 0.06)',
-        pop:  '0 10px 30px -10px rgb(22 42 35 / 0.20), 0 2px 6px 0 rgb(22 42 35 / 0.06)',
+        card: '0 1px 3px 0 rgb(15 23 42 / 0.05), 0 1px 2px -1px rgb(15 23 42 / 0.05)',
+        pop:  '0 12px 28px -6px rgb(15 23 42 / 0.12), 0 4px 10px -2px rgb(15 23 42 / 0.04)',
       },
     },
   },

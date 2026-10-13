@@ -73,7 +73,7 @@ function LikeHeart({ liked, onToggle, count, size = 18 }) {
               <span key={i} className="like-burst-dot absolute" style={{
                 left: '50%', top: '50%', width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5,
                 borderRadius: '50%',
-                background: i % 2 ? '#e8743b' : '#d4b96a',
+                background: i % 2 ? '#ea580c' : '#f59e0b',
                 '--bx': Math.cos(a) * 20 + 'px',
                 '--by': Math.sin(a) * 20 + 'px',
               }}/>

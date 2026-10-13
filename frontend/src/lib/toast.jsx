@@ -23,7 +23,7 @@ export function Toaster() {
       {items.map(t => (
         <div key={t.id} role="status"
           className={"pointer-events-auto rounded-full shadow-pop px-4 py-2 text-sm font-bold " +
-                     (t.kind === 'error' ? "bg-rust-700 text-white" : "bg-slate-900 text-cream")}>
+                     (t.kind === 'error' ? "bg-rust-700 text-white" : "bg-slate-900 text-white")}>
           {t.message}
         </div>
       ))}

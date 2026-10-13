@@ -206,7 +206,7 @@ function TagRow({ tags, onPickTag }) {
     <div className="flex flex-wrap gap-1.5 px-4 pb-3">
       {tags.map(t => (
         <button key={t} onClick={() => onPickTag && onPickTag(t)}
-          className="text-[11px] font-mono text-slate-600 bg-cream border border-dijon-300/60 px-2 py-0.5 rounded-md hover:bg-dijon-300/30 cursor-pointer">{t}</button>
+          className="text-[11px] font-mono font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 px-2 py-0.5 rounded-md hover:text-slate-900 transition cursor-pointer">{t}</button>
       ))}
     </div>
   );
@@ -226,7 +226,7 @@ function PostImages({ images, primary, post }) {
         <img src={images[0]} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none"></div>
         <div className="absolute top-3 left-3">
-          <span className="pill bg-cream/90 backdrop-blur text-slate-700 shadow-sm"><I.Image size={11} strokeWidth={2.5} /> תמונה</span>
+          <span className="pill bg-white/95 backdrop-blur text-slate-700 shadow-sm"><I.Image size={11} strokeWidth={2.5} /> תמונה</span>
         </div>
       </AN.ImageReveal>
     );
@@ -243,7 +243,7 @@ function PostImages({ images, primary, post }) {
           <div key={src} className="relative">
             {img(src, 'aspect-[4/3]')}
             {i === rest.length - 1 && images.length > 4 && (
-              <span className="absolute inset-0 grid place-items-center bg-black/50 text-cream font-display font-bold text-2xl pointer-events-none">+{images.length - 4}</span>
+              <span className="absolute inset-0 grid place-items-center bg-black/50 text-white font-display font-bold text-2xl pointer-events-none">+{images.length - 4}</span>
             )}
           </div>
         ))}
@@ -257,9 +257,9 @@ function ImageOverlayActions({ post, primary = 'פתח פרויקט' }) {
   const { user } = useAuth();
   const live = typeof post?.id === 'number';
   const mine = user && post?.author && user.username === post.author.username;
-  const btn = "text-[12px] font-semibold px-2.5 py-1 rounded-full border border-cream/40 text-cream backdrop-blur-sm bg-white/5 hover:bg-white/20 transition";
+  const btn = "text-[12px] font-semibold px-2.5 py-1 rounded-full border border-white/30 text-white backdrop-blur-sm bg-white/10 hover:bg-white/20 transition";
   return (
-    <div className="bg-gradient-to-t from-slate-900/95 via-slate-900/70 to-transparent pt-10 pb-3 px-4 text-cream">
+    <div className="bg-gradient-to-t from-slate-900/95 via-slate-900/70 to-transparent pt-10 pb-3 px-4 text-white">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="stamp text-dijon-400">{primary}</div>
         {live && (
@@ -294,7 +294,7 @@ function SharedPostPreview({ original, className }) {
   return (
     <div role="link" tabIndex={0} onClick={open} onKeyDown={(e) => e.key === 'Enter' && open(e)}
       aria-label={`הפוסט של ${original.author.name}`}
-      className={className + " block rounded-xl border hairline bg-cream/40 hover:border-rust-300 overflow-hidden cursor-pointer transition"}>
+      className={className + " block rounded-xl border hairline bg-slate-50/70 hover:border-rust-300 overflow-hidden cursor-pointer transition"}>
       <div className="flex items-center gap-2 px-3 pt-3 text-sm">
         <UI.Avatar person={original.author} size={24} />
         <span className="font-bold text-slate-900 truncate">{original.author.name}</span>
@@ -329,7 +329,7 @@ function ProjectPost({ post, onOpenProfile, onPickTag, onDeleted, openComments }
         <AN.ImageReveal className={"aspect-[16/10] " + post.bg} overlay={<ImageOverlayActions post={post} primary={post.overlay || 'פרויקט'} />}>
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none"></div>
           {post.overlay && (
-            <div className="absolute bottom-3 left-3 right-3 font-display font-bold text-2xl text-cream drop-shadow-md leading-tight">{post.overlay}</div>
+            <div className="absolute bottom-3 left-3 right-3 font-display font-bold text-2xl text-white drop-shadow-md leading-tight">{post.overlay}</div>
           )}
         </AN.ImageReveal>
       )}
@@ -355,9 +355,9 @@ function TutorialPost({ post, onOpenProfile, onPickTag, onDeleted, openComments 
 
       <ol className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {post.steps.map((s, i) => (
-          <li key={i} className="flex gap-3 p-2.5 rounded-xl border hairline hover:border-rust-300 hover:bg-cream transition cursor-pointer">
+          <li key={i} className="flex gap-3 p-2.5 rounded-xl border hairline hover:border-rust-300 hover:bg-slate-50 transition cursor-pointer">
             <div className={"relative w-16 h-16 rounded-lg shrink-0 " + s.thumb}>
-              <span className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-slate-900 text-cream grid place-items-center text-xs font-bold ring-2 ring-cream">{i + 1}</span>
+              <span className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-slate-900 text-white grid place-items-center text-xs font-bold ring-2 ring-white">{i + 1}</span>
             </div>
             <div className="min-w-0">
               <div className="font-bold text-slate-900 text-sm leading-tight">{s.title}</div>

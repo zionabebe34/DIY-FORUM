@@ -45,10 +45,10 @@ export function AdminDashboard({ onOpenProfile, onView }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-cream p-5 shadow-card">
+      <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 shadow-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="inline-flex items-center gap-3">
-            <span className="w-11 h-11 rounded-xl bg-rust-500/20 text-rust-300 grid place-items-center"><I.Shield size={22}/></span>
+            <span className="w-11 h-11 rounded-xl bg-rust-500/20 text-rust-400 grid place-items-center"><I.Shield size={22}/></span>
             <div>
               <h1 className="font-display font-bold text-2xl">לוח ניהול</h1>
               <p className="text-xs text-slate-300">מחובר/ת כ{ROLE_LABEL[user.role]} · {user.handle}</p>
@@ -87,7 +87,7 @@ export function AdminDashboard({ onOpenProfile, onView }) {
 function StatTile({ label, value, accent }) {
   return (
     <div className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-      <div className={"font-display font-bold text-2xl " + (accent ? "text-rust-300" : "text-cream")}>{value ?? '—'}</div>
+      <div className={"font-display font-bold text-2xl " + (accent ? "text-rust-400" : "text-white")}>{value ?? '—'}</div>
       <div className="text-[11px] text-slate-300 font-mono">{label}</div>
     </div>
   );
@@ -149,7 +149,7 @@ function CaseCard({ c, onOpenProfile, onDone, onBan }) {
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="pill bg-slate-900 text-cream">{TARGET_LABEL[c.target_type]}</span>
+            <span className="pill bg-slate-900 text-white">{TARGET_LABEL[c.target_type]}</span>
             <span className={"pill " + (c.count > 1 ? "bg-rust-600 text-white" : "bg-rust-50 text-rust-700")}>
               <I.Flag size={11}/> {c.count} דיווחים
             </span>
@@ -161,7 +161,7 @@ function CaseCard({ c, onOpenProfile, onDone, onBan }) {
         </div>
 
         <blockquote className={"rounded-xl border px-3 py-2 text-sm leading-relaxed " +
-                               (c.target_exists ? "border-slate-200 bg-cream/60 text-slate-800" : "border-dashed border-slate-300 text-slate-500")}>
+                               (c.target_exists ? "border-slate-200 bg-slate-50 text-slate-800" : "border-dashed border-slate-300 text-slate-500")}>
           {!c.target_exists && <div className="text-[11px] font-bold text-slate-500 mb-1">התוכן כבר לא קיים · כך הוא נראה בזמן הדיווח:</div>}
           <span dir="auto" className="whitespace-pre-line break-words">{c.snapshot || '—'}</span>
         </blockquote>
