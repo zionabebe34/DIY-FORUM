@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
 # One-command setup + run for HandyHub.
-#   ./start.sh          install deps (first run) and start API + frontend
-#   ./start.sh --seed   also reset the database and load the demo data
+#   ./start.sh          install deps (first run), update the DB (adds demo data if
+#                       missing — never deletes anything) and start API + frontend
+#   ./start.sh --seed   same as above (kept for compatibility)
+#   ./start.sh --reset  DELETE the whole database and start over (asks to confirm)
 #
 # Before the first run: copy backend/.env.example → backend/.env and set DB_PASSWORD.
 set -euo pipefail
@@ -25,11 +27,13 @@ PY="$BACKEND/.venv/bin/python"
 "$PY" -m pip install --quiet --upgrade pip
 "$PY" -m pip install --quiet -r "$BACKEND/requirements.txt"
 
-if [ "${1:-}" = "--seed" ]; then
-  echo "==> Resetting database + loading demo data…"
-  (cd "$BACKEND" && "$PY" seed.py --reset)
+if [ "${1:-}" = "--reset" ]; then
+  echo "==> Full reset requested"
+  (cd "$BACKEND" && "$PY" seed.py --reset) || { echo "Reset cancelled."; exit 1; }
 else
-  (cd "$BACKEND" && "$PY" seed.py)   # creates tables if missing, seeds only an empty DB
+  # Safe on every run: adds missing tables/columns and the demo data if it's missing.
+  # Never deletes or changes your own users, posts or roles.
+  (cd "$BACKEND" && "$PY" seed.py)
 fi
 
 # ── 2. Frontend: npm dependencies ────────────────────────────────────────────

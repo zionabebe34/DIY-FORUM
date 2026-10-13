@@ -146,3 +146,72 @@ CREATE TABLE IF NOT EXISTS password_resets (
   INDEX idx_user (user_id, created_at),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- ── Marketplace: tools for sale or for lending ──────────────────────────────
+CREATE TABLE IF NOT EXISTS listings (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  seller_id       INT          NOT NULL,
+  listing_type    ENUM('sale', 'lend') NOT NULL,
+  title           VARCHAR(120) NOT NULL,
+  description     TEXT         NULL,
+  category        ENUM('hand', 'power', 'machines', 'other') NOT NULL DEFAULT 'other',
+  condition_text  VARCHAR(80)  NOT NULL,
+  price           INT          NULL,                    -- sale (₪)
+  daily_price     INT          NULL,                    -- lend (₪ / day)
+  weekly_price    INT          NULL,                    -- lend (₪ / week)
+  deposit         INT          NULL,                    -- lend (₪)
+  image_url       VARCHAR(500) NULL,
+  cover           VARCHAR(20)  NOT NULL DEFAULT 'ph-steel',  -- placeholder gradient when there's no photo
+  status          ENUM('active', 'closed') NOT NULL DEFAULT 'active',
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status, id),
+  INDEX idx_seller (seller_id, id),
+  FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ── Store reviews: stores are created by the first review that names them ──
+CREATE TABLE IF NOT EXISTS stores (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(120) NOT NULL,
+  area        VARCHAR(120) NOT NULL DEFAULT '',
+  cover       VARCHAR(20)  NOT NULL DEFAULT 'ph-wood',
+  address     VARCHAR(200) NULL,
+  phone       VARCHAR(40)  NULL,
+  hours       VARCHAR(120) NULL,
+  summary     TEXT         NULL,
+  tags        JSON         NULL,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_store (name, area),
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS store_reviews (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  store_id    INT          NOT NULL,
+  author_id   INT          NOT NULL,
+  rating      DECIMAL(2,1) NOT NULL,                    -- 1.0 – 5.0
+  body        TEXT         NULL,
+  pros        JSON         NULL,
+  cons        JSON         NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_review (store_id, author_id),           -- one review per user per store (re-reviewing updates it)
+  FOREIGN KEY (store_id)  REFERENCES stores(id) ON DELETE CASCADE,
+  FOREIGN KEY (author_id) REFERENCES users(id)  ON DELETE CASCADE
+);
+
+-- ── Private 1-on-1 messages ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS messages (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  sender_id     INT      NOT NULL,
+  recipient_id  INT      NOT NULL,
+  body          TEXT     NOT NULL,
+  listing_id    INT      NULL,                          -- set when the chat started from a marketplace listing
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at       DATETIME NULL,
+  INDEX idx_inbox (recipient_id, read_at),
+  INDEX idx_pair (sender_id, recipient_id, id),
+  FOREIGN KEY (sender_id)    REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (listing_id)   REFERENCES listings(id) ON DELETE SET NULL
+);

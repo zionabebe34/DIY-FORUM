@@ -29,6 +29,23 @@ export function createFakeServer() {
     comments: [],         // { id, post_id, author, parent_id, body, created_at }
     reports: [],
     resets: [],           // { token, user, used }
+    listings: [
+      { id: 1, seller: 3, listing_type: 'lend', title: 'TIG welder', description: 'with mask', category: 'machines',
+        condition: 'good', price: null, daily_price: 90, weekly_price: 420, deposit: 1500, image_url: null, cover: 'ph-clay' },
+      { id: 2, seller: 1, listing_type: 'sale', title: 'Chisel set', description: '', category: 'hand',
+        condition: 'used — fine', price: 400, daily_price: null, weekly_price: null, deposit: null, image_url: '/uploads/c.png', cover: 'ph-wood' },
+      { id: 3, seller: 4, listing_type: 'sale', title: 'Impact driver', description: '', category: 'power',
+        condition: 'new', price: 320, daily_price: null, weekly_price: null, deposit: null, image_url: null, cover: 'ph-night' },
+    ],
+    stores: [{ id: 1, name: 'Wood & Steel', area: 'Tel Aviv', cover: 'ph-steel', address: 'Herzl 84', phone: '03-555',
+               hours: 'Sun–Thu 9–18', summary: 'Hand tools', tags: ['hand tools'] },
+             { id: 2, name: 'Empty Shop', area: '', cover: 'ph-wood', address: null, phone: null, hours: null, summary: '', tags: [] }],
+    reviews: [{ id: 1, store_id: 1, author: 3, rating: 4.5, body: 'Helpful staff', pros: ['service'], cons: ['parking'] },
+              { id: 2, store_id: 1, author: 4, rating: 3, body: 'OK', pros: [], cons: [] }],
+    messages: [   // { id, from, to, body, listing_id, read }
+      { id: 1, from: 3, to: 2, body: 'Hi Bob, still need the welder?', listing_id: 1, read: false },
+      { id: 2, from: 2, to: 1, body: 'Hello Alice', listing_id: null, read: true },
+    ],
     sessionUser: null,    // id of the logged-in user (stands in for the cookie)
     calls: [],            // [method, path] log for assertions
   };
@@ -327,6 +344,118 @@ export function createFakeServer() {
     if (me().role !== 'admin') return err(403, 'רק מנהל ראשי יכול לשנות תפקידים');
     byName(name).role = body.role;
     return ok({ ok: true, role: body.role });
+  }));
+
+  // marketplace
+  const listingOut = (l) => {
+    const u = db.users.find(x => x.id === l.seller);
+    return { ...l, seller: { id: u.id, username: u.username, name: u.name, avatar_url: u.avatar_url, verified: u.verified,
+                             is_agent: u.is_agent, location: u.location }, status: 'active', created_at: iso(5) };
+  };
+  on('GET', '/api/listings', (_, q) => {
+    let list = db.listings.filter(l => !db.users.find(u => u.id === l.seller).is_banned);
+    if (q.get('category')) list = list.filter(l => l.category === q.get('category'));
+    if (q.get('seller')) list = list.filter(l => byName(q.get('seller'))?.id === l.seller);
+    const counts = { all: list.length, sale: list.filter(l => l.listing_type === 'sale').length,
+                     lend: list.filter(l => l.listing_type === 'lend').length };
+    if (q.get('type')) list = list.filter(l => l.listing_type === q.get('type'));
+    list = [...list].sort((a, b) => b.id - a.id);
+    const limit = Number(q.get('limit') || 12);
+    return ok({ items: list.slice(0, limit).map(listingOut), next_cursor: null, counts });
+  });
+  on('POST', '/api/listings', needLogin((_, __, form) => {
+    if (!form.get('title')) return err(400, 'יש להזין שם לכלי');
+    const lend = form.get('listing_type') === 'lend';
+    const l = { id: id(), seller: me().id, listing_type: form.get('listing_type'), title: form.get('title'),
+                description: form.get('description') || '', category: form.get('category') || 'other',
+                condition: form.get('condition'), price: lend ? null : Number(form.get('price')),
+                daily_price: lend ? Number(form.get('daily_price')) : null,
+                weekly_price: lend ? Number(form.get('weekly_price') || form.get('daily_price') * 5) : null,
+                deposit: lend ? Number(form.get('deposit') || 0) : null,
+                image_url: form.get('image') ? '/uploads/listing.png' : null, cover: 'ph-steel' };
+    db.listings.push(l);
+    return ok({ listing: listingOut(l) }, 201);
+  }));
+  on('DELETE', '/api/listings/(\\d+)', needLogin(([lid]) => {
+    db.listings = db.listings.filter(l => l.id !== +lid);
+    return ok({ ok: true });
+  }));
+
+  // stores
+  const storeOut = (st) => {
+    const rs = db.reviews.filter(r => r.store_id === st.id);
+    return { ...st, reviews_count: rs.length, avg_rating: rs.length ? rs.reduce((n, r) => n + r.rating, 0) / rs.length : null };
+  };
+  const reviewOut = (r) => {
+    const u = db.users.find(x => x.id === r.author);
+    return { ...r, author: { id: u.id, username: u.username, name: u.name, avatar_url: u.avatar_url, verified: u.verified,
+                             is_agent: u.is_agent }, created_at: iso(60) };
+  };
+  on('GET', '/api/stores', () => ok({ items: db.stores.map(storeOut) }));
+  on('GET', '/api/stores/(\\d+)', ([sid], q) => {
+    const st = db.stores.find(x => x.id === +sid);
+    if (!st) return err(404, 'החנות לא נמצאה');
+    let rs = db.reviews.filter(r => r.store_id === st.id);
+    if (q.get('sort') === 'highest') rs = [...rs].sort((a, b) => b.rating - a.rating);
+    if (q.get('sort') === 'lowest') rs = [...rs].sort((a, b) => a.rating - b.rating);
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    rs.forEach(r => { distribution[Math.round(r.rating)] += 1; });
+    return ok({ store: storeOut(st), reviews: rs.map(reviewOut), distribution });
+  });
+  on('POST', '/api/stores/reviews', needLogin((_, __, body) => {
+    if (!body.rating) return err(400, 'יש לבחור דירוג');
+    let sid = body.store_id;
+    if (!sid) {
+      const found = db.stores.find(x => x.name === body.store_name && x.area === (body.area || ''));
+      sid = found ? found.id : id();
+      if (!found) db.stores.push({ id: sid, name: body.store_name, area: body.area || '', cover: 'ph-wood', address: null,
+                                   phone: null, hours: null, summary: '', tags: [] });
+    }
+    db.reviews = db.reviews.filter(r => !(r.store_id === sid && r.author === me().id));
+    const r = { id: id(), store_id: sid, author: me().id, rating: body.rating, body: body.body, pros: body.pros, cons: body.cons };
+    db.reviews.push(r);
+    return ok({ store_id: sid, review: reviewOut(r) }, 201);
+  }));
+  on('DELETE', '/api/stores/reviews/(\\d+)', needLogin(([rid]) => {
+    db.reviews = db.reviews.filter(r => r.id !== +rid);
+    return ok({ ok: true });
+  }));
+
+  // private messages
+  const msgOut = (m) => ({ id: m.id, body: m.body, created_at: iso(2), from_me: m.from === me().id, read: m.read,
+                           listing: m.listing_id ? listingOut(db.listings.find(l => l.id === m.listing_id)) : null });
+  on('GET', '/api/messages/conversations', needLogin(() => {
+    const mine = db.messages.filter(m => m.from === me().id || m.to === me().id);
+    const byOther = {};
+    mine.forEach(m => { byOther[m.from === me().id ? m.to : m.from] = m; });
+    const items = Object.entries(byOther).sort((a, b) => b[1].id - a[1].id).map(([other, last]) => {
+      const u = db.users.find(x => x.id === +other);
+      return { with: { ...pub(u) }, last: { body: last.body, created_at: iso(2), from_me: last.from === me().id },
+               unread: mine.filter(m => m.from === u.id && !m.read).length };
+    });
+    return ok({ items });
+  }));
+  on('GET', '/api/messages/with/([^/]+)', needLogin(([name], q) => {
+    const u = byName(name);
+    if (!u) return err(404, 'המשתמש לא נמצא');
+    const after = Number(q.get('after') || 0);
+    const items = db.messages.filter(m => ((m.from === me().id && m.to === u.id) || (m.from === u.id && m.to === me().id)) && m.id > after);
+    items.forEach(m => { if (m.to === me().id) m.read = true; });
+    return ok({ with: pub(u), items: items.map(msgOut) });
+  }));
+  on('POST', '/api/messages/with/([^/]+)', needLogin(([name], __, body) => {
+    const u = byName(name);
+    if (!u) return err(404, 'המשתמש לא נמצא');
+    if (body.body.includes('FAIL')) return err(400, 'שגיאה מדומה');
+    const m = { id: id(), from: me().id, to: u.id, body: body.body, listing_id: body.listing_id || null, read: false };
+    db.messages.push(m);
+    return ok({ message: msgOut(m) }, 201);
+  }));
+  on('GET', '/api/messages/unread', needLogin(() => {
+    const unread = db.messages.filter(m => m.to === me().id && !m.read);
+    const latest = unread[unread.length - 1];
+    return ok({ count: unread.length, latest: latest ? { id: latest.id, body: latest.body,
+      from: pub(db.users.find(x => x.id === latest.from)) } : null });
   }));
 
   // ── fetch ──────────────────────────────────────────────────────────────

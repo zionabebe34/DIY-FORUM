@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { renderApp, navigate } from './utils.jsx';
 
-const posts = () => document.querySelectorAll('main article');
+const posts = () => document.querySelectorAll('main article.paper-card');
 
 describe('feed', () => {
   it('loads the global feed with real counts, rich text and images', async () => {

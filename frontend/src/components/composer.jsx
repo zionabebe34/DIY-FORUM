@@ -5,12 +5,13 @@ import { UI } from './ui.jsx';
 import { RichEditor } from './RichEditor.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { api } from '../lib/api.js';
+import { CATEGORY_OPTIONS } from './market.jsx';
 // Full post composer (Hebrew) — opens as a modal-style sheet
 const { useState: useStateC, useRef: useRefC, useEffect: useEffectC } = React;
 
 const PLACEHOLDER_BGS = ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'];
 
-function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' }) {
+function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'project' }) {
   const { user } = useAuth();
   const [bodyHtml, setBodyHtml] = useStateC('');   // rich text (project / tutorial)
   const [bodyText, setBodyText] = useStateC('');
@@ -26,6 +27,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
   const [title, setTitle] = useStateC('');
   const [price, setPrice] = useStateC('');
   const [cond, setCond] = useStateC('יד שנייה — במצב טוב');
+  const [category, setCategory] = useStateC('hand');
   // Tool listing extras
   const [listingType, setListingType] = useStateC('sale'); // 'sale' | 'lend'
   const [dailyPrice, setDailyPrice] = useStateC('');
@@ -43,7 +45,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
       setBodyHtml(''); setBodyText(''); setError(''); setSubmitting(false); setOpenCount(c => c + 1);
       setSteps([{ title: '', note: '', thumb: 'ph-wood' }]);
       setTitle(''); setPrice(''); setCond('יד שנייה — במצב טוב');
-      setListingType('sale'); setDailyPrice(''); setWeeklyPrice(''); setDeposit('');
+      setListingType('sale'); setDailyPrice(''); setWeeklyPrice(''); setDeposit(''); setCategory('hand');
     }
   }, [open, mode]);
 
@@ -61,6 +63,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
   }, [open]);
 
   if (!open) return null;
+  const maxMedia = kind === 'tool' ? 1 : 6;    // a listing has a single photo
 
   // Don't silently throw away a draft (backdrop click / Esc / ✕ / ביטול)
   const hasDraft = bodyText.trim() || text.trim() || title.trim() || media.length || tags.length;
@@ -95,7 +98,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
     if (images.length < all.length) setError('כרגע אפשר להעלות רק תמונות (JPG / PNG / GIF / WEBP)');
     const tooBig = images.filter(f => f.size > 5 * 1024 * 1024);
     if (tooBig.length) setError('כל תמונה עד 5MB');
-    const ok = images.filter(f => f.size <= 5 * 1024 * 1024).slice(0, 6 - media.length);
+    const ok = images.filter(f => f.size <= 5 * 1024 * 1024).slice(0, maxMedia - media.length);
     setMedia(m => [...m, ...ok.map(f => ({ type: 'image', file: f, name: f.name, url: URL.createObjectURL(f) }))]);
   };
   const removeMedia = (i) => setMedia(arr => {
@@ -137,14 +140,30 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
   const publish = async () => {
     if (!canPublish || submitting) return;
     if (kind === 'tool') {
-      // Marketplace listings are still local mock data (not part of the course requirements yet)
-      onPublish({
-        kind: 'tool', listingType, name: title, body: text, cond, tags,
-        ...(listingType === 'lend'
-          ? { dailyPrice: Number(dailyPrice), weeklyPrice: Number(weeklyPrice) || Number(dailyPrice) * 5, deposit: Number(deposit) || 0 }
-          : { price: Number(price) }),
-      });
-      onClose();
+      const form = new FormData();
+      form.append('listing_type', listingType);
+      form.append('title', title);
+      form.append('description', text);
+      form.append('condition', cond);
+      form.append('category', category);
+      if (listingType === 'lend') {
+        form.append('daily_price', dailyPrice);
+        form.append('weekly_price', weeklyPrice);
+        form.append('deposit', deposit);
+      } else {
+        form.append('price', price);
+      }
+      if (media[0]) form.append('image', media[0].file, media[0].name);
+      setSubmitting(true);
+      setError('');
+      try {
+        const listing = await api.createListing(form);
+        onListingCreated && onListingCreated(listing);
+        onClose();
+      } catch (e) {
+        setError(e.message);
+        setSubmitting(false);
+      }
       return;
     }
     const form = new FormData();
@@ -248,7 +267,14 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="block sm:col-span-2">
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-700">קטגוריה</span>
+                    <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="קטגוריה"
+                      className="mt-1 w-full rounded-lg border border-slate-200 focus:border-rust-500 focus:ring-2 focus:ring-rust-500/20 outline-none px-3 py-2 text-sm bg-white">
+                      {CATEGORY_OPTIONS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
                     <span className="text-xs font-bold text-slate-700">שם הכלי</span>
                     <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="DeWalt מברגת אימפקט 20V"
                       className="mt-1 w-full rounded-lg border border-slate-200 focus:border-rust-500 focus:ring-2 focus:ring-rust-500/20 outline-none px-3 py-2 text-sm"/>
@@ -353,7 +379,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
             )}
 
             {/* Media dropzone */}
-            {kind === 'project' && (
+            {kind !== 'tutorial' && (
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -374,7 +400,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
                         <I.Video size={14}/> וידאו
                       </button>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-2">עד 6 תמונות · JPG/PNG/GIF/WEBP · עד 5MB כל אחת</p>
+                    <p className="text-[11px] text-slate-400 mt-2">{maxMedia === 1 ? 'תמונה אחת' : 'עד 6 תמונות'} · JPG/PNG/GIF/WEBP · עד 5MB כל אחת</p>
                   </div>
                 ) : (
                   <>
@@ -398,7 +424,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
                           <div className="absolute bottom-1 inset-x-1 text-[10px] text-white/90 truncate font-medium drop-shadow">{m.name}</div>
                         </div>
                       ))}
-                      {media.length < 6 && (
+                      {media.length < maxMedia && (
                         <button onClick={() => triggerFile('image')}
                           className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-rust-500 hover:bg-rust-50 grid place-items-center text-slate-400 hover:text-rust-600">
                           <I.Plus size={20}/>
@@ -406,7 +432,7 @@ function PostComposer({ open, onClose, onPublish, onCreated, mode = 'project' })
                       )}
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-200">
-                      <div className="text-[11px] text-slate-500">{media.length}/6 קבצים</div>
+                      <div className="text-[11px] text-slate-500">{media.length}/{maxMedia} קבצים</div>
                       <div className="flex gap-1">
                         <button onClick={() => triggerFile('image')} className="text-xs font-bold text-rust-700 hover:underline inline-flex items-center gap-1"><I.Image size={12}/> הוסף תמונה</button>
                         

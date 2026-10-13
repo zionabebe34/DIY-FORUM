@@ -18,6 +18,12 @@ erDiagram
     USERS ||--o{ COMMENTS    : "writes"
     COMMENTS ||--o{ COMMENTS : "replies"
     USERS ||--o{ PASSWORD_RESETS : "requests"
+    USERS ||--o{ LISTINGS    : "sells / lends"
+    USERS ||--o{ MESSAGES    : "sends"
+    USERS ||--o{ MESSAGES    : "receives"
+    LISTINGS |o--o{ MESSAGES : "asked about"
+    STORES ||--o{ STORE_REVIEWS : "has"
+    USERS ||--o{ STORE_REVIEWS  : "writes"
     USERS ||--o{ REPORTS     : "reports (reporter)"
     USERS ||--o{ REPORTS     : "is reported (target_user)"
 
@@ -90,6 +96,52 @@ erDiagram
         text body "plain text"
         datetime created_at
     }
+    LISTINGS {
+        int id PK
+        int seller_id FK
+        enum listing_type "sale | lend"
+        varchar title
+        text description
+        enum category "hand | power | machines | other"
+        varchar condition_text
+        int price "sale"
+        int daily_price "lend"
+        int weekly_price "lend"
+        int deposit "lend"
+        varchar image_url
+        enum status "active | closed"
+        datetime created_at
+    }
+    MESSAGES {
+        int id PK
+        int sender_id FK
+        int recipient_id FK
+        text body
+        int listing_id FK "chat started from a listing"
+        datetime created_at
+        datetime read_at "NULL = unread"
+    }
+    STORES {
+        int id PK
+        varchar name UK "with area"
+        varchar area UK
+        varchar address
+        varchar phone
+        varchar hours
+        text summary
+        json tags
+        int created_by FK
+    }
+    STORE_REVIEWS {
+        int id PK
+        int store_id FK
+        int author_id FK
+        decimal rating "1.0–5.0"
+        text body
+        json pros
+        json cons
+        datetime created_at
+    }
     PASSWORD_RESETS {
         int id PK
         int user_id FK
@@ -126,6 +178,9 @@ erDiagram
 | Post ↔ Tag | many-to-many | `post_tags(post_id, tag_id)` |
 | User ↔ Post (like) | many-to-many | `post_likes(user_id, post_id)`, composite PK = one like per user per post |
 | Post → Comments | one-to-many | `comments.post_id → posts.id` |
+| User → Listings | one-to-many | `listings.seller_id → users.id` (marketplace: sale / lend) |
+| User ↔ User (messages) | many-to-many via `messages` | `sender_id`, `recipient_id`; a conversation = all messages between two users; `read_at` drives unread counts |
+| Store → Reviews | one-to-many | `store_reviews.store_id`; `UNIQUE(store_id, author_id)` = one review per user per store (re-reviewing updates it). Stores are created by the first review that names them (`UNIQUE(name, area)`) |
 | Report → target | polymorphic | `reports(target_type, target_id)` points at a post, comment or user; `snapshot` keeps the text so a case stays readable after the content is deleted |
 | Comment → Replies | one-to-many (self) | `comments.parent_id → comments.id`; one level of nesting (a reply to a reply joins the top-level thread) |
 

@@ -103,7 +103,7 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
               <I.Bot size={12} strokeWidth={2.5}/> סוכן AI
             </span>
           )}
-          <div className="absolute bottom-3 right-3 text-white/90 text-xs inline-flex items-center gap-1.5">
+          <div className="absolute bottom-3 left-3 text-white/90 text-xs inline-flex items-center gap-1.5 drop-shadow">
             {person.loc && <><I.MapPin size={12}/> {person.loc}<span className="w-1 h-1 rounded-full bg-white/50 mx-1"></span></>}
             <span>חבר מאז {person.joined}</span>
           </div>
@@ -111,7 +111,7 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
 
         <div className="px-4 sm:px-6 pb-4">
           <div className="flex items-start gap-4 -mt-10 sm:-mt-12">
-            <div className="rounded-full bg-white p-1 shadow-card shrink-0">
+            <div className="relative z-10 rounded-full bg-white p-1 shadow-card shrink-0">
               <img src={avatarSrc(person)} alt={person.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover" />
             </div>
             <div className="flex-1 min-w-0 mt-10 sm:mt-12 flex items-center gap-2 justify-end flex-wrap">

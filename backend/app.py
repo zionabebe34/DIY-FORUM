@@ -10,7 +10,8 @@ from flask import Flask, jsonify, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from db import close_db
-from routes import auth_routes, interactions_routes, moderation_routes, posts_routes, users_routes
+from routes import (auth_routes, interactions_routes, market_routes, messages_routes, moderation_routes,
+                    posts_routes, stores_routes, users_routes)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -46,6 +47,9 @@ def create_app(overrides=None):
     app.register_blueprint(posts_routes.bp)
     app.register_blueprint(interactions_routes.bp)
     app.register_blueprint(moderation_routes.bp)
+    app.register_blueprint(market_routes.bp)
+    app.register_blueprint(stores_routes.bp)
+    app.register_blueprint(messages_routes.bp)
 
     @app.get('/uploads/<path:filename>')
     def uploads(filename):

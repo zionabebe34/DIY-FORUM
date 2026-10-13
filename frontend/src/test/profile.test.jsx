@@ -10,7 +10,7 @@ describe('profile page', () => {
     expect(await screen.findByRole('heading', { name: 'Carol Mizrahi' })).toBeInTheDocument();
     expect(screen.getAllByText('Welder')[0]).toBeInTheDocument();
     expect(screen.getAllByText(/welding/)[0]).toBeInTheDocument();
-    await waitFor(() => expect(document.querySelectorAll('main article').length).toBeGreaterThan(0));
+    await waitFor(() => expect(document.querySelectorAll('main article.paper-card').length).toBeGreaterThan(0));
     await user.click(screen.getByRole('tab', { name: /אודות/ }));
     expect(screen.getByText('מיקום').nextSibling).toHaveTextContent('Haifa');
     await user.click(screen.getByRole('button', { name: /חזרה לפיד/ }));

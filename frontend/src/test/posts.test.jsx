@@ -4,7 +4,7 @@ import { renderApp } from './utils.jsx';
 
 const firstPost = async () => {
   await screen.findByText(/Post number 25/);
-  return document.querySelectorAll('main article')[0];
+  return document.querySelectorAll('main article.paper-card')[0];
 };
 const heart = (article) => article.querySelector('button.relative');
 
@@ -104,7 +104,7 @@ describe('comments', () => {
   it('shows an empty thread and a load error', async () => {
     const { user, server } = await renderApp({ as: 'bob' });
     await firstPost();
-    const second = document.querySelectorAll('main article')[1];
+    const second = document.querySelectorAll('main article.paper-card')[1];
     await user.click(within(second).getByTitle('תגובות'));
     expect(await within(second).findByText(/אין תגובות עדיין/)).toBeInTheDocument();
     await user.click(within(second).getByTitle('תגובות'));            // close
@@ -147,7 +147,7 @@ describe('post menu', () => {
     const { user, server } = await renderApp({ as: 'alice' });
     await screen.findByText(/Post number 25/);
     // Post 25 is by Alice (index 24 → author 1)
-    const post = document.querySelectorAll('main article')[0];
+    const post = document.querySelectorAll('main article.paper-card')[0];
     await user.click(within(post).getByRole('button', { name: 'אפשרויות' }));
     await user.click(screen.getByRole('button', { name: 'מחק פוסט' }));
     await waitFor(() => expect(screen.queryByText(/Post number 25/)).not.toBeInTheDocument());
@@ -157,7 +157,7 @@ describe('post menu', () => {
   it('lets a moderator delete someone else\'s post, and shows server errors', async () => {
     const { user, server } = await renderApp({ as: 'alice' });   // alice is admin
     await screen.findByText(/Post number 24/);
-    const post = [...document.querySelectorAll('main article')].find(a => a.textContent.includes('Post number 24'));
+    const post = [...document.querySelectorAll('main article.paper-card')].find(a => a.textContent.includes('Post number 24'));
     await user.click(within(post).getByRole('button', { name: 'אפשרויות' }));
     server.fetch.failNext = 'DELETE /api/posts/24';
     await user.click(screen.getByRole('button', { name: 'מחק (ניהול)' }));
@@ -279,23 +279,6 @@ describe('composer', () => {
     expect(screen.getByText('פוסט חדש')).toBeInTheDocument();          // kept
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByText('פוסט חדש')).not.toBeInTheDocument());
-  });
-
-  it('lists a tool for sale / lending in the (mock) marketplace', async () => {
-    const { user } = await renderApp({ as: 'bob' });
-    await user.click(await screen.findByRole('button', { name: /מכירת כלי/ }));
-    await screen.findByText('פוסט חדש');
-    await user.type(screen.getByPlaceholderText(/DeWalt/), 'Old drill');
-    await user.type(screen.getByPlaceholderText('320'), '150');
-    await user.selectOptions(screen.getAllByRole('combobox')[0], 'חדש');
-    await user.click(screen.getByText('השאלה'));
-    await user.type(screen.getByPlaceholderText('60'), '40');
-    await user.type(screen.getByPlaceholderText(/חישוב אוטומטי/), '150');
-    await user.type(screen.getByPlaceholderText('800'), '300');
-    await user.type(screen.getByPlaceholderText(/איזה כלי/), 'Works great');
-    await user.click(dialog().getByRole('button', { name: /^פרסם$/ }));
-    await waitFor(() => expect(window.location.hash).toBe('#/market'));
-    expect(await screen.findAllByText('Old drill')).not.toHaveLength(0);
   });
 
   it('guests are asked to log in before composing', async () => {

@@ -17,11 +17,12 @@ Final project for the RUNI Full-Stack course (2026): a social network for makers
    ```
    Edit `backend/.env` and set `DB_PASSWORD` to your local MySQL root password (MySQL must be running).
 
-2. **Start everything** (creates the venv, installs deps, creates the DB + demo data, runs API and frontend):
+2. **Start everything** (creates the venv, installs deps, creates/updates the DB, adds the demo data, runs API and frontend):
    ```bash
-   ./start.sh --seed
+   ./start.sh
    ```
-   Later runs: `./start.sh` (keeps your data).
+   Running it again is always safe: it only adds missing tables/columns and the demo data **if it's missing** — it never deletes or changes your own users, posts or roles.
+   To wipe the database and start from scratch: `./start.sh --reset` (asks you to type `yes` first).
 
 3. Open **http://localhost:5173**
 
@@ -63,8 +64,8 @@ An HTML report is written to `frontend/coverage/index.html`.
 
 | | Tests | Coverage (lines) |
 |---|---|---|
-| Backend | 61 | 99% |
-| Frontend | 81 | 97% |
+| Backend | 70 | 99% |
+| Frontend | 87 | 98% |
 
 ## Part 1 requirements → where they live
 
@@ -91,10 +92,18 @@ An HTML report is written to `frontend/coverage/index.html`.
 | b.i Likes ("hearts") | ✅ `POST/DELETE /api/posts/<id>/like`; optimistic ♥ in `PostFooter` (`posts.jsx`) |
 | b.ii Comments (nested one level) | ✅ `GET/POST /api/posts/<id>/comments`, `DELETE /api/comments/<id>`; thread UI in `comments.jsx` |
 | e.i Admin users / moderators | ✅ `users.role`; admins assign roles in the dashboard or with `python manage.py set-role <user> admin` |
-| f. Unit & integration tests ≥ 85% | ✅ backend 99% (61 tests), frontend 97% (81 tests) — see "Tests" above |
+| f. Unit & integration tests ≥ 85% | ✅ backend 99% (70 tests), frontend 98% (87 tests) — see "Tests" above |
 | e.ii Report system + admin dashboard | ✅ "דווח" on posts, comments and profiles → `POST /api/reports`; `#/admin` (`admin.jsx`): report cases, delete content, ban / unban, roles |
 
-Still mock data from the design: marketplace, store reviews, messages, notifications, saved items.
+### Also built (beyond the required list)
+
+| Feature | Implementation |
+|---|---|
+| Private messages (optional 3c) | `/api/messages/*` — per-user conversations, unread counts, read receipts; the open thread refreshes every 4 s and a "new message" toast appears without a page reload (`messages.jsx`, polling in `App.jsx`) |
+| Marketplace | `/api/listings` — tools for sale or lending with photo, category, prices; "קנה / השאל" opens a private chat with the seller, pre-filled with an inquiry (`market.jsx`) |
+| Store reviews | `/api/stores` — a review creates the store if needed; ratings, histogram, sort, one review per user per store (`stores.jsx`) |
+
+Still mock data from the design: notifications and saved items.
 
 ## Project layout
 
@@ -126,3 +135,9 @@ design/     original Claude Design export (reference only)
 | GET | `/api/admin/stats` · `/api/admin/reports?status=open\|closed` · `/api/admin/users?q=&filter=` | dashboard (moderators) |
 | POST | `/api/admin/cases/dismiss` · `/api/admin/users/<u>/ban` · `/api/admin/users/<u>/unban` | moderation actions |
 | PUT | `/api/admin/users/<u>/role` | change role (admins only) |
+| GET / POST | `/api/listings?type=&category=&seller=` | marketplace list / create (multipart) |
+| DELETE | `/api/listings/<id>` | owner or moderator |
+| GET | `/api/stores` · `/api/stores/<id>?sort=recent\|highest\|lowest` | stores, store page + reviews |
+| POST / DELETE | `/api/stores/reviews` · `/api/stores/reviews/<id>` | write (creates the store if needed) / delete a review |
+| GET | `/api/messages/conversations` · `/api/messages/with/<u>?after=` · `/api/messages/unread` | inbox, thread (marks read), unread count |
+| POST | `/api/messages/with/<u>` | send (`body`, optional `listing_id`) |

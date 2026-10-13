@@ -99,6 +99,42 @@ export function toComment(c) {
   };
 }
 
+export function toListing(l) {
+  return {
+    id: l.id,
+    listingType: l.listing_type,
+    name: l.title,
+    description: l.description,
+    category: l.category,
+    cond: l.condition,
+    price: l.price,
+    dailyPrice: l.daily_price,
+    weeklyPrice: l.weekly_price,
+    deposit: l.deposit,
+    image: l.image_url,
+    bg: l.cover,
+    createdAt: l.created_at,
+    seller: toPerson(l.seller),
+  };
+}
+
+export function toStore(s) {
+  return {
+    id: s.id, name: s.name, area: s.area, bg: s.cover, address: s.address, phone: s.phone, hours: s.hours,
+    summary: s.summary, tags: s.tags || [], reviews: s.reviews_count, rating: s.avg_rating,
+  };
+}
+
+export function toReview(r) {
+  return { id: r.id, rating: r.rating, body: r.body, pros: r.pros, cons: r.cons, createdAt: r.created_at,
+           author: toPerson(r.author) };
+}
+
+export function toMessage(m) {
+  return { id: m.id, text: m.body, createdAt: m.created_at, from: m.from_me ? 'me' : 'them', read: m.read,
+           listing: m.listing ? toListing(m.listing) : null };
+}
+
 const page = (mapper) => (data) => ({ items: data.items.map(mapper), nextCursor: data.next_cursor });
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
@@ -141,6 +177,33 @@ export const api = {
     tags: d.tags,
   })),
   trending: () => request('/api/tags/trending').then(d => d.items),
+
+  // Marketplace
+  listings: ({ type, category, seller, before, limit = 12 } = {}) =>
+    request('/api/listings' + qs({ type: type === 'all' ? '' : type, category: category === 'all' ? '' : category,
+                                   seller, before, limit }))
+      .then(d => ({ items: d.items.map(toListing), nextCursor: d.next_cursor, counts: d.counts })),
+  createListing: (formData) => request('/api/listings', { method: 'POST', form: formData }).then(d => toListing(d.listing)),
+  deleteListing: (id) => request(`/api/listings/${id}`, { method: 'DELETE' }),
+
+  // Store reviews
+  stores: () => request('/api/stores').then(d => d.items.map(toStore)),
+  store: (id, sort) => request(`/api/stores/${id}` + qs({ sort })).then(d => ({
+    store: toStore(d.store), reviews: d.reviews.map(toReview), distribution: d.distribution })),
+  reviewStore: (fields) => request('/api/stores/reviews', { method: 'POST', json: fields }),
+  deleteReview: (id) => request(`/api/stores/reviews/${id}`, { method: 'DELETE' }),
+
+  // Private messages
+  conversations: () => request('/api/messages/conversations').then(d => d.items.map(c => ({
+    with: toPerson(c.with), last: { text: c.last.body, createdAt: c.last.created_at, fromMe: c.last.from_me },
+    unread: c.unread }))),
+  thread: (username, after) => request(`/api/messages/with/${encodeURIComponent(username)}` + qs({ after }))
+    .then(d => ({ with: toPerson(d.with), items: d.items.map(toMessage) })),
+  sendMessage: (username, body, listingId) =>
+    request(`/api/messages/with/${encodeURIComponent(username)}`, { method: 'POST', json: { body, listing_id: listingId ?? null } })
+      .then(d => toMessage(d.message)),
+  unreadMessages: () => request('/api/messages/unread'),
+  searchUsers: (q) => request('/api/users/search' + qs({ q })).then(d => d.items.map(toPerson)),
 
   // Reporting + moderation
   report: (targetType, targetId, reason, details) =>

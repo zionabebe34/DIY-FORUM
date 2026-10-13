@@ -1,7 +1,10 @@
-"""Create the database schema and fill it with demo data.
+"""Create / update the database schema and add the demo data.
 
-    python seed.py --reset    # drop + recreate the database, then seed
-    python seed.py            # create tables if missing, seed only if empty
+    python seed.py            # safe: create missing tables/columns, add the demo
+                              #       users & posts only if they aren't there yet.
+                              #       Never deletes or changes existing data.
+    python seed.py --reset    # DESTRUCTIVE: drop the whole database and start over
+                              #       (asks for confirmation; add --yes to skip it)
 
 Every demo account uses the password  handyhub123
 """
@@ -140,6 +143,52 @@ COMMENT_THREADS = [
      ('iris.makes', 'כמה זמן ייבוש בין השכבות?', [('shira.diy', 'לפחות 4 שעות, ועדיף לילה.')])],
 ]
 
+
+# ── Marketplace / stores / messages demo data (seller = demo username) ──────
+LISTINGS = [
+    dict(seller='yoav_tools', type='sale', title='מקצוע יד Stanley מס׳ 4', price=240, cond='יד שנייה — במצב טוב', cat='hand', cover='ph-steel'),
+    dict(seller='daniel_p', type='sale', title='מברגת אימפקט DeWalt 20V', price=320, cond='יד שנייה — כחדש', cat='power', cover='ph-night'),
+    dict(seller='alon_builds', type='sale', title='סט 6 אזמלים Narex', price=400, cond='יד שנייה — סביר', cat='hand', cover='ph-wood'),
+    dict(seller='iris.makes', type='lend', title='נתב Bosch 1617 + 12 ביטים', daily=60, weekly=280, deposit=800, cond='במצב טוב — נבדק', cat='power', cover='ph-paper'),
+    dict(seller='shira.diy', type='sale', title='Festool Domino DF 500', price=2600, cond='יד שנייה — מצוין', cat='power', cover='ph-clay'),
+    dict(seller='yoav_tools', type='sale', title='מסור יד Disston וינטג׳ D-8', price=180, cond='יד שנייה — פטינה', cat='hand', cover='ph-leaf'),
+    dict(seller='shira.diy', type='lend', title='מסור טבלה Festool TS 55', daily=120, weekly=540, deposit=2000, cond='מצוין — עם מסילה 1.4מ׳', cat='machines', cover='ph-night'),
+    dict(seller='yoav_tools', type='lend', title='מקדחת עמוד JET 14"', daily=45, weekly=220, deposit=600, cond='במצב טוב — איסוף מהסדנה', cat='machines', cover='ph-steel'),
+    dict(seller='iris.makes', type='lend', title='ערכת ריתוך TIG ניידת', daily=90, weekly=420, deposit=1500, cond='כולל גז + מסכה', cat='machines', cover='ph-clay'),
+]
+
+STORES = [
+    dict(name='פלדה ועץ — כלי עבודה', area='פלורנטין, תל אביב', cover='ph-steel', tags=['כלי יד', 'ליטוש מסורים'],
+         address='הרצל 84, תל אביב', phone='03-555-1284', hours='א׳-ה׳ 9:00–18:00 · ו׳ 9:00–13:00',
+         summary='חנות כלים ותיקה בלב פלורנטין, מתמחה בכלי יד איכותיים, ליטוש מסורים והשבחת מקצועות במקום.',
+         reviews=[('yoav_tools', 4.5, 'הבחור החדש בילה איתי 40 דקות עד שהוא מצא ידית מתאימה למסור היד הישן שלי. אנשים אמיתיים.', ['בחירה ידנית של עץ', 'צוות יודע על מה הוא מדבר'], ['מזומן בלבד לליטוש מסורים']),
+                  ('alon_builds', 5, 'הזמנתי 8 אזמלי נארקס, הגיע למחרת. שירות מעולה.', ['מהירות אספקה', 'מחירים הוגנים'], []),
+                  ('iris.makes', 4, 'מבחר טוב, אבל החנות צפופה מאוד בימי שישי.', ['מבחר טוב', 'יחס אישי'], ['צפוף בימי שישי'])]),
+    dict(name='עצי הצפון', area='יקנעם', cover='ph-wood', tags=['עץ מלא', 'לוחות חי-קצה'],
+         address='אזה״ת יקנעם', phone='04-555-2080', hours='א׳-ה׳ 8:00–17:00 · ו׳ 8:00–13:00',
+         summary='מחסן עצים בצפון עם מבחר גדול של אלון, אגוז וזית. אפשר לבחור לוחות אישית.',
+         reviews=[('shira.diy', 5, 'נסעתי שעתיים — שווה כל ק״מ. המבחר של חי-קצה אגוז פשוט בלי תחרות.', ['אגוז חי-קצה', 'מבחר עצום'], ['רחוק מהמרכז']),
+                  ('yael.builds', 4.5, 'המליצו לי איפה לחסוך בלי לפגוע באיכות.', ['ייעוץ אמיתי'], [])]),
+    dict(name='ריתוך הים', area='אשדוד', cover='ph-night', tags=['ריתוך', 'מילוי גזים'],
+         address='הנפח 12, אשדוד', phone='08-555-3344', hours='א׳-ה׳ 7:00–17:00 · ו׳ סגור',
+         summary='ספק ריתוך לגננים ולחובבים — מילוי בלוני גז, מסכות וחומרי מילוי.',
+         reviews=[('iris.makes', 4.5, 'מילוי גז ארגון תוך 20 דקות, ובמחיר הוגן.', ['מילוי גז זריז'], ['פתוח רק עד 17:00']),
+                  ('daniel_p', 4, 'חומרי מילוי טובים, המסכות הזולות פחות.', ['חומרי מילוי טובים'], ['מסכות זולות לא איכותיות'])]),
+    dict(name='בטון סטודיו', area='ירושלים', cover='ph-clay', tags=['מיקרו-בטון', 'פיגמנטים'],
+         address='התלמוד 7, ירושלים', phone='02-555-7766', hours='א׳-ה׳ 10:00–18:00 · ו׳ 10:00–14:00',
+         summary='סטודיו לבטון אומנותי — חומרי גלם, פיגמנטים וסילרים, וסדנאות חודשיות.',
+         reviews=[('shira.diy', 5, 'הסדנה כאן היא חובה. למדתי יותר ב-4 שעות מאשר בחצי שנה.', ['סדנאות מקצועיות', 'פיגמנטים נדירים'], ['מתמלא מהר'])]),
+]
+
+# (from, to, text, listing title or None) — oldest first
+MESSAGES = [
+    ('daniel_p', 'alon_builds', 'היי אלון, ראיתי את הספסל מאגוז. איך עשית את חיבורי הפליז?', None),
+    ('alon_builds', 'daniel_p', 'קדחתי 8 מ״מ ודחפתי יתד פליז עם קצת אפוקסי. אשלח לך תמונה מחר.', None),
+    ('daniel_p', 'yoav_tools', 'שלום! המקצוע Stanley עדיין זמין?', 'מקצוע יד Stanley מס׳ 4'),
+    ('yoav_tools', 'daniel_p', 'כן, אפשר לבוא לראות אותו בסדנה ברמת גן.', None),
+    ('iris.makes', 'shira.diy', 'יש לך מקום בסדנת המיקרו-בטון הבאה?', None),
+]
+
 # ── Placeholder images (pure-Python PNG gradients in the site palette) ──────
 PALETTES = {
     'wood': [(0x7a, 0x3e, 0x1e), (0xa8, 0x5a, 0x2b), (0xc9, 0x80, 0x3f), (0xe8, 0xa9, 0x6b)],
@@ -230,9 +279,15 @@ def apply_schema(db_name, reset=False):
 def seed(db_name, upload_dir):
     conn = connect(db_name)
     cur = conn.cursor()
-    cur.execute('SELECT COUNT(*) FROM users')
+    # Only add the demo set when none of the demo accounts exist yet — this never
+    # touches users / posts you created yourself.
+    demo_names = [u['username'] for u in USERS]
+    demo_emails = [u['email'] for u in USERS]
+    marks = ', '.join(['%s'] * len(demo_names))
+    cur.execute(f'SELECT COUNT(*) FROM users WHERE username IN ({marks}) OR email IN ({marks})',
+                (*demo_names, *demo_emails))
     if cur.fetchone()[0] > 0:
-        print('Database already has users — skipping seed (use --reset to start over).')
+        print('Demo data already present — nothing to add. Your existing data was not changed.')
         conn.close()
         return
 
@@ -277,9 +332,10 @@ def seed(db_name, upload_dir):
             cur.execute('INSERT INTO post_images (post_id, url, position) VALUES (%s, %s, 0)',
                         (post_id, images[palette]))
         for tag in tags:
-            if tag not in tag_ids:
-                cur.execute('INSERT INTO tags (name) VALUES (%s)', (tag,))
-                tag_ids[tag] = cur.lastrowid
+            if tag not in tag_ids:   # reuse tags that already exist in the database
+                cur.execute('INSERT IGNORE INTO tags (name) VALUES (%s)', (tag,))
+                cur.execute('SELECT id FROM tags WHERE name = %s', (tag,))
+                tag_ids[tag] = cur.fetchone()[0]
             cur.execute('INSERT INTO post_tags (post_id, tag_id) VALUES (%s, %s)', (post_id, tag_ids[tag]))
 
     # Likes: every user hearts a random ~40% of the posts
@@ -308,7 +364,83 @@ def seed(db_name, upload_dir):
     print(f'Seeded {len(USERS)} users, {len(posts)} posts. Demo password: {DEMO_PASSWORD}')
 
 
+def confirm_reset(db_name):
+    """--reset wipes everything, so require an explicit 'yes' (or --yes)."""
+    if '--yes' in sys.argv:
+        return True
+    print(f'⚠️  This will DELETE the whole "{db_name}" database — all users, posts, comments and roles.')
+    try:
+        answer = input('Type "yes" to continue: ')
+    except EOFError:
+        answer = ''
+    return answer.strip().lower() == 'yes'
+
+
+def seed_extras(db_name):
+    """Marketplace listings, stores + reviews and demo conversations between the demo
+    users. Each part is added only when its table is still empty, so this is safe to
+    run on an existing database (it never changes your own data)."""
+    conn = connect(db_name)
+    cur = conn.cursor()
+    cur.execute('SELECT username, id FROM users')
+    ids = dict(cur.fetchall())
+    if not all(u['username'] in ids for u in USERS):
+        conn.close()
+        return
+    added = []
+
+    cur.execute('SELECT COUNT(*) FROM listings')
+    if cur.fetchone()[0] == 0:
+        for l in LISTINGS:
+            cur.execute("""INSERT INTO listings (seller_id, listing_type, title, category, condition_text, price,
+                                                 daily_price, weekly_price, deposit, cover)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                        (ids[l['seller']], l['type'], l['title'], l['cat'], l['cond'], l.get('price'),
+                         l.get('daily'), l.get('weekly'), l.get('deposit'), l['cover']))
+        added.append(f'{len(LISTINGS)} listings')
+
+    cur.execute('SELECT COUNT(*) FROM stores')
+    if cur.fetchone()[0] == 0:
+        for st in STORES:
+            cur.execute("""INSERT INTO stores (name, area, cover, address, phone, hours, summary, tags)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                        (st['name'], st['area'], st['cover'], st['address'], st['phone'], st['hours'], st['summary'],
+                         json.dumps(st['tags'], ensure_ascii=False)))
+            store_id = cur.lastrowid
+            for author, rating, body, pros, cons in st['reviews']:
+                cur.execute("""INSERT INTO store_reviews (store_id, author_id, rating, body, pros, cons)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (store_id, ids[author], rating, body, json.dumps(pros, ensure_ascii=False),
+                             json.dumps(cons, ensure_ascii=False)))
+        added.append(f'{len(STORES)} stores')
+
+    cur.execute('SELECT COUNT(*) FROM messages')
+    if cur.fetchone()[0] == 0:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        for i, (sender, recipient, body, listing_title) in enumerate(MESSAGES):
+            listing_id = None
+            if listing_title:
+                cur.execute('SELECT id FROM listings WHERE title = %s LIMIT 1', (listing_title,))
+                row = cur.fetchone()
+                listing_id = row[0] if row else None
+            cur.execute("""INSERT INTO messages (sender_id, recipient_id, body, listing_id, created_at, read_at)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (ids[sender], ids[recipient], body, listing_id, now - timedelta(minutes=(len(MESSAGES) - i) * 37),
+                         now if i < len(MESSAGES) - 2 else None))
+        added.append(f'{len(MESSAGES)} messages')
+
+    conn.commit()
+    conn.close()
+    if added:
+        print('Added demo ' + ', '.join(added) + '.')
+
+
 if __name__ == '__main__':
     name = os.getenv('DB_NAME', 'handyhub')
-    apply_schema(name, reset='--reset' in sys.argv)
+    reset = '--reset' in sys.argv
+    if reset and not confirm_reset(name):
+        print('Cancelled — nothing was deleted.')
+        sys.exit(1)
+    apply_schema(name, reset=reset)
     seed(name, os.getenv('UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads')))
+    seed_extras(name)

@@ -1,5 +1,5 @@
 // HandyHub main app — Navbar, Feed view, Composer, view router
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { I } from './icons.jsx';
 import { HUB_DATA } from './data.jsx';
 import { UI } from './ui.jsx';
@@ -13,7 +13,10 @@ import { Spinner, ErrorRow } from './social.jsx';
 import { AdminDashboard } from './admin.jsx';
 import { ResetPassword } from './reset.jsx';
 import { ReportHost } from './report.jsx';
-import { Toaster } from '../lib/toast.jsx';
+import { Toaster, toast } from '../lib/toast.jsx';
+import { inquiryText } from './market.jsx';
+
+const MESSAGE_POLL_MS = 10000;
 import { api } from '../lib/api.js';
 import { useAuth, NEED_LOGIN_EVENT } from '../lib/auth.jsx';
 import { useDebounced, useInfiniteScroll, usePaginated } from '../lib/hooks.js';
@@ -297,7 +300,7 @@ function ComposerBtn({ icon, label, accent, onClick }) {
 }
 
 // ====================== FEED =================================================
-function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, tagFilter, onClearTag }) {
+function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, tagFilter, onClearTag, onContact, onView }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('global');
   const scope = user ? tab : 'global';
@@ -368,7 +371,7 @@ function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, 
 
       {posts.slice(0, 3).map(renderPost)}
       {/* Inline marketplace teaser as a feed unit (marketplace is still mock data) */}
-      {!tagFilter && posts.length > 3 && <SECTIONS.MarketplaceTeaser onOpenProfile={onOpenProfile} />}
+      {!tagFilter && posts.length > 3 && <SECTIONS.MarketplaceTeaser onOpenProfile={onOpenProfile} onContact={onContact} onView={onView} />}
       {posts.slice(3).map(renderPost)}
 
       {loading && <Spinner label={posts.length ? 'טוען עוד פרויקטים…' : 'טוען את הפיד…'} />}
@@ -568,15 +571,15 @@ export function App() {
   const [authMode, setAuthMode] = useState(null);      // null | 'login' | 'signup'
   const [mobileMenu, setMobileMenu] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [dmTarget, setDmTarget] = useState(null);
+  const [dmTarget, setDmTarget] = useState(null);       // { username, draft?, listing? } to open a chat with
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [listingsVersion, setListingsVersion] = useState(0);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerMode, setComposerMode] = useState('project');
   const [createdPosts, setCreatedPosts] = useState([]);  // published this session
-  const [, forceMarket] = useState(0);
-  const unreadMessages = user ? HUB_DATA.CONVERSATIONS.reduce((n, c) => n + c.unread, 0) : 0;
   const unreadNotifications = user ? HUB_DATA.NOTIFICATIONS.filter(n => !n.read).length : 0;
 
   // Buttons deep inside posts (♥, comment) ask for the login dialog via an event
@@ -589,6 +592,28 @@ export function App() {
   // Arriving at a reset link closes any auth dialog that was left open
   useEffect(() => { if (view === 'reset') setAuthMode(null); }, [view, param]);
 
+  // "New message" alerts without a refresh: poll the unread count while logged in
+  const lastAlerted = useRef(null);
+  useEffect(() => {
+    if (!user) { setUnreadMessages(0); lastAlerted.current = null; return undefined; }
+    let alive = true;
+    const check = () => api.unreadMessages().then(r => {
+      if (!alive) return;
+      setUnreadMessages(r.count);
+      const latest = r.latest;
+      if (latest && lastAlerted.current !== null && latest.id > lastAlerted.current && !messagesOpenRef.current) {
+        toast(`💬 הודעה חדשה מ${latest.from.name}`);
+      }
+      if (latest) lastAlerted.current = Math.max(lastAlerted.current ?? 0, latest.id);
+      else if (lastAlerted.current === null) lastAlerted.current = 0;
+    }).catch(() => {});
+    check();
+    const timer = setInterval(check, MESSAGE_POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, [user]);
+  const messagesOpenRef = useRef(false);
+  messagesOpenRef.current = messagesOpen;
+
   // New session → forget posts created by a previous user
   useEffect(() => { setCreatedPosts([]); }, [user?.username]);
 
@@ -597,7 +622,12 @@ export function App() {
   const handleSign = (mode = 'login') => setAuthMode(mode);
   const requireAuth = (fn) => (...args) => { if (!user) { setAuthMode('login'); return; } fn(...args); };
 
-  const handleOpenMessages = requireAuth((personId) => { setDmTarget(personId || null); setMessagesOpen(true); });
+  const handleOpenMessages = requireAuth((username, draft, listing) => {
+    setDmTarget(username ? { username, draft, listing } : null);
+    setMessagesOpen(true);
+  });
+  // "Buy" / "Lend" on a listing → private chat with the seller, pre-filled with an inquiry
+  const handleContactSeller = (listing) => handleOpenMessages(listing.seller.username, inquiryText(listing), listing);
   const handleOpenComposer = requireAuth((mode = 'project') => { setComposerMode(mode); setComposerOpen(true); });
 
   const handleCreated = (post) => {
@@ -605,17 +635,8 @@ export function App() {
     if (view !== 'feed' && !(view === 'profile' && param === user.username)) navigate('feed');
   };
 
-  // Marketplace listings are still local mock data (design behaviour kept as-is)
-  const handlePublishTool = (post) => {
-    const seller = { id: user.username, name: user.name, handle: user.handle, verified: user.verified };
-    const base = {
-      id: 'u' + Date.now(), name: post.name, listingType: post.listingType || 'sale', cond: post.cond, seller, dist: '0 קמ',
-      bg: ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'][Math.floor(Math.random() * 6)],
-    };
-    HUB_DATA.MARKET.unshift(post.listingType === 'lend'
-      ? { ...base, dailyPrice: post.dailyPrice, weeklyPrice: post.weeklyPrice, deposit: post.deposit }
-      : { ...base, price: post.price });
-    forceMarket(n => n + 1);
+  const handleListingCreated = () => {
+    setListingsVersion(v => v + 1);
     navigate('marketplace');
   };
 
@@ -640,10 +661,14 @@ export function App() {
             {!ready ? <Spinner /> : <>
               {view === 'feed'        && <Feed onSign={handleSign} onOpenComposer={handleOpenComposer} onOpenProfile={handleOpenProfile}
                                                onPickTag={handlePickTag} createdPosts={createdPosts}
-                                               tagFilter={param} onClearTag={() => navigate('feed')} />}
-              {view === 'marketplace' && <SECTIONS.Marketplace onOpenProfile={handleOpenProfile} authed={!!user} onSign={() => handleSign('login')} onOpenComposer={handleOpenComposer} />}
-              {view === 'stores'      && <SECTIONS.StoreReviews onOpenStore={(id) => navigate('store', id)} />}
-              {view === 'store'       && <SECTIONS.Store storeId={param} onOpenProfile={handleOpenProfile} onView={(v) => navigate(v)} />}
+                                               tagFilter={param} onClearTag={() => navigate('feed')}
+                                               onContact={handleContactSeller} onView={(v) => navigate(v)} />}
+              {view === 'marketplace' && <SECTIONS.Marketplace onOpenProfile={handleOpenProfile} onSign={handleSign}
+                                                               onOpenComposer={handleOpenComposer} onContact={handleContactSeller}
+                                                               refreshKey={listingsVersion} />}
+              {view === 'stores'      && <SECTIONS.StoreReviews onOpenStore={(id) => navigate('store', id)} onSign={handleSign} />}
+              {view === 'store'       && <SECTIONS.Store key={param} storeId={param} onOpenProfile={handleOpenProfile}
+                                                         onView={(v) => navigate(v)} onSign={handleSign} />}
               {view === 'reset'       && <ResetPassword key={param} token={param} onLogin={(m) => setAuthMode(m)}
                                                         onView={(v) => navigate(v)} />}
               {view === 'admin'       && <AdminDashboard onOpenProfile={handleOpenProfile} onView={(v) => navigate(v)} />}
@@ -662,14 +687,15 @@ export function App() {
       </main>
 
       <PostComposer open={composerOpen} mode={composerMode} onClose={() => setComposerOpen(false)}
-                    onPublish={handlePublishTool} onCreated={handleCreated} />
+                    onCreated={handleCreated} onListingCreated={handleListingCreated} />
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
       {settingsOpen && user && <EditProfileModal onClose={() => setSettingsOpen(false)} />}
       <MobileDrawer open={mobileMenu} onClose={() => setMobileMenu(false)} view={view} onView={(v) => navigate(v)}
         onOpenMessages={() => { handleOpenMessages(); setMobileMenu(false); }}
         onOpenNotifications={() => { requireAuth(() => setNotifsOpen(true))(); setMobileMenu(false); }}
         onOpenSaved={() => { requireAuth(() => setSavedOpen(true))(); setMobileMenu(false); }} />
-      <MessagesPanel open={messagesOpen} onClose={() => { setMessagesOpen(false); setDmTarget(null); }} initialPersonId={dmTarget} />
+      <MessagesPanel open={messagesOpen} onClose={() => { setMessagesOpen(false); setDmTarget(null); }}
+                     initial={dmTarget} onUnreadChange={setUnreadMessages} />
       <NotificationsPanel open={notifsOpen} onClose={() => setNotifsOpen(false)} />
       <SavedPanel open={savedOpen} onClose={() => setSavedOpen(false)} />
       <ReportHost />

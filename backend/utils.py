@@ -122,3 +122,18 @@ def private_user(row):
     data = public_user(row)
     data['email'] = row['email']
     return data
+
+
+def user_brief(row, prefix):
+    """Compact author/seller object from columns selected as <prefix>id, <prefix>username, …"""
+    return {
+        'id': row[prefix + 'id'], 'username': row[prefix + 'username'], 'name': row[prefix + 'name'],
+        'avatar_url': row[prefix + 'avatar_url'], 'verified': bool(row[prefix + 'verified']),
+        'is_agent': bool(row[prefix + 'is_agent']), 'location': row.get(prefix + 'location') or '',
+    }
+
+
+def user_brief_sql(alias, prefix):
+    """SELECT list matching user_brief()."""
+    cols = ('id', 'username', 'name', 'avatar_url', 'verified', 'is_agent', 'location')
+    return ', '.join(f'{alias}.{c} AS {prefix}{c}' for c in cols)
