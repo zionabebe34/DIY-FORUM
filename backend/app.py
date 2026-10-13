@@ -10,7 +10,7 @@ from flask import Flask, jsonify, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from db import close_db
-from routes import auth_routes, posts_routes, users_routes
+from routes import auth_routes, interactions_routes, moderation_routes, posts_routes, users_routes
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -25,6 +25,13 @@ def create_app(overrides=None):
         DB_PASSWORD=os.getenv('DB_PASSWORD', ''),
         DB_NAME=os.getenv('DB_NAME', 'handyhub'),
         COOKIE_SECURE=os.getenv('COOKIE_SECURE', '0') == '1',
+        APP_URL=os.getenv('APP_URL', 'http://localhost:5173').rstrip('/'),   # used in emailed links
+        MAIL_BACKEND=os.getenv('MAIL_BACKEND', 'console'),
+        MAIL_FROM=os.getenv('MAIL_FROM', ''),
+        SMTP_HOST=os.getenv('SMTP_HOST', 'smtp.gmail.com'),
+        SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
+        SMTP_USER=os.getenv('SMTP_USER', ''),
+        SMTP_PASSWORD=os.getenv('SMTP_PASSWORD', ''),
         UPLOAD_DIR=os.getenv('UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads')),
         MAX_CONTENT_LENGTH=40 * 1024 * 1024,  # whole request (up to 6 images)
         JSON_AS_ASCII=False,
@@ -37,6 +44,8 @@ def create_app(overrides=None):
     app.register_blueprint(auth_routes.bp)
     app.register_blueprint(users_routes.bp)
     app.register_blueprint(posts_routes.bp)
+    app.register_blueprint(interactions_routes.bp)
+    app.register_blueprint(moderation_routes.bp)
 
     @app.get('/uploads/<path:filename>')
     def uploads(filename):

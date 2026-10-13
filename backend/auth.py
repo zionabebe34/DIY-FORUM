@@ -21,7 +21,7 @@ def check_password(plain, hashed):
     return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def _token_hash(token):
+def token_hash(token):
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
@@ -30,12 +30,12 @@ def create_session(user_id):
     token = secrets.token_urlsafe(32)
     expires = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=SESSION_DAYS)
     execute('INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)',
-            (user_id, _token_hash(token), expires))
+            (user_id, token_hash(token), expires))
     return token
 
 
 def delete_session(token):
-    execute('DELETE FROM sessions WHERE token_hash = %s', (_token_hash(token),))
+    execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(token),))
 
 
 def set_session_cookie(response, token):
@@ -61,8 +61,8 @@ def current_user():
     if token:
         g.user = query(
             """SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-               WHERE s.token_hash = %s AND s.expires_at > UTC_TIMESTAMP()""",
-            (_token_hash(token),), one=True)
+               WHERE s.token_hash = %s AND s.expires_at > UTC_TIMESTAMP() AND u.is_banned = FALSE""",
+            (token_hash(token),), one=True)
     return g.user
 
 
@@ -71,5 +71,25 @@ def login_required(view):
     def wrapper(*args, **kwargs):
         if current_user() is None:
             return jsonify({'error': 'נדרשת התחברות'}), 401
+        return view(*args, **kwargs)
+    return wrapper
+
+
+def is_moderator(user):
+    return user is not None and user.get('role') in ('moderator', 'admin')
+
+
+def is_admin(user):
+    return user is not None and user.get('role') == 'admin'
+
+
+def moderator_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if user is None:
+            return jsonify({'error': 'נדרשת התחברות'}), 401
+        if not is_moderator(user):
+            return jsonify({'error': 'אין הרשאת ניהול'}), 403
         return view(*args, **kwargs)
     return wrapper

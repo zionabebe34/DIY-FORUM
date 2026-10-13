@@ -39,3 +39,9 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+
+/** Ask the app to open the login dialog (used by deeply nested buttons like ♥ / comment). */
+export const NEED_LOGIN_EVENT = 'hh:need-login';
+export function requestLogin() {
+  window.dispatchEvent(new Event(NEED_LOGIN_EVENT));
+}

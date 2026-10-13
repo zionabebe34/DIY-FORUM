@@ -108,6 +108,8 @@ def public_user(row, extra=None):
         'skills': skills or [],
         'verified': bool(row.get('verified')),
         'is_agent': bool(row.get('is_agent')),
+        'role': row.get('role') or 'user',
+        'is_banned': bool(row.get('is_banned')),
         'created_at': iso(row.get('created_at')),
     }
     if extra:

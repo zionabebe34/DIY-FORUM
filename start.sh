@@ -39,8 +39,22 @@ if [ ! -d "$FRONTEND/node_modules" ]; then
 fi
 
 # ── 3. Run both ──────────────────────────────────────────────────────────────
-cleanup() { [ -n "${API_PID:-}" ] && kill "$API_PID" 2>/dev/null || true; }
+# Stop the API *and* its child (Flask's auto-reloader) when this script exits.
+cleanup() {
+  if [ -n "${API_PID:-}" ]; then
+    pkill -P "$API_PID" 2>/dev/null || true
+    kill "$API_PID" 2>/dev/null || true
+  fi
+}
 trap cleanup EXIT INT TERM
+
+for port in 5050 5173; do
+  if lsof -nP -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "!! Port $port is already in use — probably HandyHub from an earlier run is still going."
+    echo "   Stop it with:  kill \$(lsof -tiTCP:$port -sTCP:LISTEN)   and run ./start.sh again."
+    exit 1
+  fi
+done
 
 echo "==> API      → http://localhost:5050"
 (cd "$BACKEND" && "$PY" app.py) &

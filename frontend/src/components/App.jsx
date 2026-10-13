@@ -10,13 +10,17 @@ import { MessagesPanel } from './messages.jsx';
 import { NotificationsPanel, SavedPanel } from './panels.jsx';
 import { Profile, EditProfileModal } from './profile.jsx';
 import { Spinner, ErrorRow } from './social.jsx';
+import { AdminDashboard } from './admin.jsx';
+import { ResetPassword } from './reset.jsx';
+import { ReportHost } from './report.jsx';
+import { Toaster } from '../lib/toast.jsx';
 import { api } from '../lib/api.js';
-import { useAuth } from '../lib/auth.jsx';
+import { useAuth, NEED_LOGIN_EVENT } from '../lib/auth.jsx';
 import { useDebounced, useInfiniteScroll, usePaginated } from '../lib/hooks.js';
 
 // ====================== ROUTING (hash based) =================================
 //   #/              feed           #/tag/<tag>     feed filtered by hashtag
-//   #/u/<username>  profile        #/market  #/stores  #/store/<id>
+//   #/u/<username>  profile        #/market  #/stores  #/store/<id>   #/admin (staff)
 function parseHash() {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   switch (parts[0]) {
@@ -25,6 +29,8 @@ function parseHash() {
     case 'market': return { view: 'marketplace' };
     case 'stores': return { view: 'stores' };
     case 'store':  return { view: 'store', param: parts[1] };
+    case 'admin':  return { view: 'admin' };
+    case 'reset':  return { view: 'reset', param: parts[1] };
     default:       return { view: 'feed', param: null };
   }
 }
@@ -36,6 +42,8 @@ function hashFor(view, param) {
   if (view === 'marketplace') return '#/market';
   if (view === 'stores') return '#/stores';
   if (view === 'store') return `#/store/${enc(param)}`;
+  if (view === 'admin') return '#/admin';
+  if (view === 'reset') return `#/reset/${enc(param)}`;
   return '#/';
 }
 
@@ -56,6 +64,7 @@ function useHashRoute() {
 
 // ====================== NAVBAR ==============================================
 function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNotifications, onOpenSaved, onOpenProfile, onOpenSettings, onPickTag, unreadMessages, unreadNotifications }) {
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [results, setResults] = useState({ people: [], posts: [], tags: [] });
@@ -94,7 +103,7 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
         </a>
 
         {/* Search */}
-        <div className="flex-1 max-w-lg relative">
+        <div className="flex-1 min-w-0 max-w-lg relative">
           <div className={"flex items-center gap-2 bg-slate-100 rounded-full pl-3.5 pr-2 h-10 transition " +
                           (focused ? "ring-2 ring-rust-500/30 bg-white border border-slate-200" : "border border-transparent")}>
             <I.Search size={16} className="text-slate-500 shrink-0" />
@@ -213,8 +222,15 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
               <span className="absolute top-0.5 left-0.5 min-w-[16px] h-4 px-1 bg-rust-600 text-white text-[10px] font-bold rounded-full grid place-items-center ring-2 ring-white">{unreadMessages}</span>
             )}
           </button>
+          {user?.isStaff && (
+            <button onClick={() => onView('admin')} title="לוח ניהול" aria-label="לוח ניהול"
+              className={"hidden sm:grid w-9 h-9 place-items-center rounded-full " +
+                         (view === 'admin' ? "bg-slate-900 text-rust-300" : "text-slate-600 hover:bg-slate-100")}>
+              <I.Shield size={18} />
+            </button>
+          )}
           <UI.ProfileMenu onSign={onSign} onOpenSaved={onOpenSaved} onOpenNotifications={onOpenNotifications}
-                          onOpenProfile={onOpenProfile} onOpenSettings={onOpenSettings} />
+                          onOpenProfile={onOpenProfile} onOpenSettings={onOpenSettings} onOpenAdmin={() => onView('admin')} />
         </div>
       </div>
     </header>
@@ -382,6 +398,7 @@ function AuthModal({ initialMode = 'signup', onClose }) {
   const [fields, setFields] = useState({ name: '', username: '', email: '', login: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sentMessage, setSentMessage] = useState('');   // forgot-password confirmation
   const set = (k) => (e) => setFields(f => ({ ...f, [k]: e.target.value }));
 
   useEffect(() => {
@@ -395,6 +412,12 @@ function AuthModal({ initialMode = 'signup', onClose }) {
     setBusy(true);
     setError('');
     try {
+      if (mode === 'forgot') {
+        const r = await api.forgotPassword(fields.email);
+        setSentMessage(r.message);
+        setBusy(false);
+        return;
+      }
       if (mode === 'signup') {
         await signup({ name: fields.name, username: fields.username, email: fields.email, password: fields.password });
       } else {
@@ -407,10 +430,17 @@ function AuthModal({ initialMode = 'signup', onClose }) {
     }
   };
 
-  const switchMode = () => { setMode(m => m === 'signup' ? 'login' : 'signup'); setError(''); };
+  const goTo = (m) => { setMode(m); setError(''); setSentMessage(''); };
+  const switchMode = () => goTo(mode === 'signup' ? 'login' : 'signup');
+  const TITLES = {
+    signup: ['בואו נבנה דברים', 'תשתפו פרויקטים, תמצאו כלים, ותלמדו מיוצרים אחרים.'],
+    login:  ['טוב שחזרת', 'התחברו עם האימייל או שם המשתמש.'],
+    forgot: ['שכחתם סיסמה?', 'הזינו את האימייל של החשבון ונשלח אליו קישור לבחירת סיסמה חדשה.'],
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+      <div className="min-h-full flex items-center justify-center p-4">
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-pop w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <div className="inline-flex items-center gap-2">
@@ -419,12 +449,20 @@ function AuthModal({ initialMode = 'signup', onClose }) {
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="סגור"><I.X size={18} /></button>
         </div>
-        <h2 className="font-display font-bold text-3xl text-slate-900 mt-3">
-          {mode === 'signup' ? 'בואו נבנה דברים' : 'טוב שחזרת'}
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          {mode === 'signup' ? 'תשתפו פרויקטים, תמצאו כלים, ותלמדו מיוצרים אחרים.' : 'התחברו עם האימייל או שם המשתמש.'}
-        </p>
+        <h2 className="font-display font-bold text-3xl text-slate-900 mt-3">{TITLES[mode][0]}</h2>
+        <p className="text-sm text-slate-500 mt-1">{TITLES[mode][1]}</p>
+        {mode === 'forgot' ? (
+          <div className="space-y-2 mt-5">
+            {sentMessage ? (
+              <div role="status" className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-3 flex gap-2">
+                <I.Mail size={18} className="shrink-0 mt-0.5"/> <span>{sentMessage}</span>
+              </div>
+            ) : (
+              <Field label="אימייל" placeholder="you@workshop.co.il" type="email" value={fields.email} onChange={set('email')}
+                     required dir="ltr" autoComplete="email" autoFocus />
+            )}
+          </div>
+        ) : (
         <div className="space-y-2 mt-5">
           {mode === 'signup' ? (
             <>
@@ -439,19 +477,34 @@ function AuthModal({ initialMode = 'signup', onClose }) {
           <Field label="סיסמה" placeholder="••••••••" type="password" value={fields.password} onChange={set('password')} required
                  minLength={mode === 'signup' ? 8 : undefined} dir="ltr" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
           {mode === 'signup' && <p className="text-[11px] text-slate-500">לפחות 8 תווים.</p>}
+          {mode === 'login' && (
+            <button type="button" onClick={() => goTo('forgot')} className="text-xs font-semibold text-rust-700 hover:underline">
+              שכחתי סיסמה
+            </button>
+          )}
         </div>
+        )}
         {error && <div role="alert" className="mt-4 rounded-lg bg-rust-50 border border-rust-200 text-rust-800 text-sm px-3 py-2">{error}</div>}
-        <button type="submit" disabled={busy}
-          className="w-full mt-5 bg-rust-600 hover:bg-rust-700 disabled:opacity-60 text-white font-bold rounded-lg py-2.5">
-          {busy ? 'רגע…' : mode === 'signup' ? 'הרשמה' : 'התחברות'}
-        </button>
+        {!(mode === 'forgot' && sentMessage) && (
+          <button type="submit" disabled={busy}
+            className="w-full mt-5 bg-rust-600 hover:bg-rust-700 disabled:opacity-60 text-white font-bold rounded-lg py-2.5">
+            {busy ? 'רגע…' : { signup: 'הרשמה', login: 'התחברות', forgot: 'שלחו לי קישור' }[mode]}
+          </button>
+        )}
+        {mode === 'forgot' ? (
+          <div className="text-center text-sm text-slate-500 mt-3">
+            <button type="button" onClick={() => goTo('login')} className="text-rust-700 font-semibold hover:underline">חזרה להתחברות</button>
+          </div>
+        ) : (
         <div className="text-center text-sm text-slate-500 mt-3">
           {mode === 'signup' ? 'כבר יש לך חשבון? ' : 'חדש כאן? '}
           <button type="button" onClick={switchMode} className="text-rust-700 font-semibold hover:underline">
             {mode === 'signup' ? 'להתחברות' : 'להרשמה'}
           </button>
         </div>
+        )}
       </form>
+      </div>
     </div>
   );
 }
@@ -467,6 +520,7 @@ function Field({ label, ...rest }) {
 
 // ====================== MOBILE DRAWER =======================================
 function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotifications, onOpenSaved }) {
+  const { user } = useAuth();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 lg:hidden" onClick={onClose}>
@@ -487,6 +541,9 @@ function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotif
           <DrawerLink icon={<I.Bell size={18}/>}  onClick={onOpenNotifications} label="התראות" />
           <DrawerLink onClick={onOpenMessages} icon={<I.Mail size={18}/>}  label="הודעות" />
           <DrawerLink onClick={onOpenSaved} icon={<I.Bookmark size={18}/>} label="שמורים" />
+          {user?.isStaff && (
+            <DrawerLink active={view === 'admin'} onClick={() => { onView('admin'); onClose(); }} icon={<I.Shield size={18}/>} label="לוח ניהול" />
+          )}
         </nav>
       </aside>
     </div>
@@ -521,6 +578,16 @@ export function App() {
   const [, forceMarket] = useState(0);
   const unreadMessages = user ? HUB_DATA.CONVERSATIONS.reduce((n, c) => n + c.unread, 0) : 0;
   const unreadNotifications = user ? HUB_DATA.NOTIFICATIONS.filter(n => !n.read).length : 0;
+
+  // Buttons deep inside posts (♥, comment) ask for the login dialog via an event
+  useEffect(() => {
+    const open = () => setAuthMode('login');
+    window.addEventListener(NEED_LOGIN_EVENT, open);
+    return () => window.removeEventListener(NEED_LOGIN_EVENT, open);
+  }, []);
+
+  // Arriving at a reset link closes any auth dialog that was left open
+  useEffect(() => { if (view === 'reset') setAuthMode(null); }, [view, param]);
 
   // New session → forget posts created by a previous user
   useEffect(() => { setCreatedPosts([]); }, [user?.username]);
@@ -577,6 +644,9 @@ export function App() {
               {view === 'marketplace' && <SECTIONS.Marketplace onOpenProfile={handleOpenProfile} authed={!!user} onSign={() => handleSign('login')} onOpenComposer={handleOpenComposer} />}
               {view === 'stores'      && <SECTIONS.StoreReviews onOpenStore={(id) => navigate('store', id)} />}
               {view === 'store'       && <SECTIONS.Store storeId={param} onOpenProfile={handleOpenProfile} onView={(v) => navigate(v)} />}
+              {view === 'reset'       && <ResetPassword key={param} token={param} onLogin={(m) => setAuthMode(m)}
+                                                        onView={(v) => navigate(v)} />}
+              {view === 'admin'       && <AdminDashboard onOpenProfile={handleOpenProfile} onView={(v) => navigate(v)} />}
               {view === 'profile'     && <Profile key={param} username={param} onOpenProfile={handleOpenProfile} onSign={handleSign}
                                                   onOpenMessages={handleOpenMessages} onView={(v) => navigate(v)} onPickTag={handlePickTag}
                                                   createdPosts={createdPosts} />}
@@ -602,6 +672,8 @@ export function App() {
       <MessagesPanel open={messagesOpen} onClose={() => { setMessagesOpen(false); setDmTarget(null); }} initialPersonId={dmTarget} />
       <NotificationsPanel open={notifsOpen} onClose={() => setNotifsOpen(false)} />
       <SavedPanel open={savedOpen} onClose={() => setSavedOpen(false)} />
+      <ReportHost />
+      <Toaster />
     </div>
   );
 }

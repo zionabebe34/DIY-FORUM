@@ -46,7 +46,7 @@ def search_users():
     like = _like_escape(q)
     rows = query(
         _USER_WITH_FOLLOWING + """
-        WHERE u.username LIKE %s OR u.name LIKE %s
+        WHERE u.is_banned = FALSE AND (u.username LIKE %s OR u.name LIKE %s)
         ORDER BY (u.username LIKE %s) DESC,
                  (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) DESC,
                  u.username
@@ -66,7 +66,7 @@ def suggested_users():
                     WHERE m.followee_id = u.id) AS mutuals,
                   (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers
            FROM users u
-           WHERE u.id <> %s
+           WHERE u.id <> %s AND u.is_banned = FALSE
              AND NOT EXISTS (SELECT 1 FROM follows x WHERE x.follower_id = %s AND x.followee_id = u.id)
            ORDER BY mutuals DESC, followers DESC, u.id
            LIMIT 5""",

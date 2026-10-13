@@ -4,7 +4,8 @@ import re
 
 from flask import Blueprint, jsonify, request
 
-from auth import current_user, login_required
+from auth import current_user, is_moderator, login_required
+from moderation import resolve_reports
 from db import commit, execute, query
 from utils import (UploadError, html_to_text, iso, parse_json_list, public_user,
                    sanitize_html, save_image)
@@ -45,6 +46,17 @@ def _serialize_posts(rows):
                    f'WHERE pt.post_id IN ({_in_clause(ids)}) ORDER BY t.name', ids):
         tags.setdefault(r['post_id'], []).append('#' + r['name'])
 
+    likes = {r['post_id']: int(r['n']) for r in query(
+        f'SELECT post_id, COUNT(*) AS n FROM post_likes WHERE post_id IN ({_in_clause(ids)}) GROUP BY post_id', ids)}
+    comments = {r['post_id']: int(r['n']) for r in query(
+        f'SELECT post_id, COUNT(*) AS n FROM comments WHERE post_id IN ({_in_clause(ids)}) GROUP BY post_id', ids)}
+    me = current_user()
+    liked = set()
+    if me:
+        liked = {r['post_id'] for r in query(
+            f'SELECT post_id FROM post_likes WHERE user_id = %s AND post_id IN ({_in_clause(ids)})',
+            (me['id'], *ids))}
+
     result = []
     for r in rows:
         steps = r['steps']
@@ -60,6 +72,9 @@ def _serialize_posts(rows):
             'images': images.get(r['id'], []),
             'tags': tags.get(r['id'], []),
             'created_at': iso(r['created_at']),
+            'likes_count': likes.get(r['id'], 0),
+            'comments_count': comments.get(r['id'], 0),
+            'liked_by_me': r['id'] in liked,
             'author': {
                 'id': r['u_id'], 'username': r['u_username'], 'name': r['u_name'],
                 'avatar_url': r['u_avatar_url'], 'cover': r['u_cover'],
@@ -73,7 +88,7 @@ def _page(where, params):
     """Keyset pagination on post id (newest first): ?before=<id>&limit=<n>."""
     limit = min(max(request.args.get('limit', DEFAULT_PAGE, type=int), 1), MAX_PAGE)
     before = request.args.get('before', type=int)
-    clauses, values = list(where), list(params)
+    clauses, values = ['u.is_banned = FALSE', *where], list(params)
     if before:
         clauses.append('p.id < %s')
         values.append(before)
@@ -115,7 +130,7 @@ def user_posts(username):
 
 @bp.get('/posts/<int:post_id>')
 def get_post(post_id):
-    rows = query(f'{_POST_SELECT} WHERE p.id = %s', (post_id,))
+    rows = query(f'{_POST_SELECT} WHERE p.id = %s AND u.is_banned = FALSE', (post_id,))
     if not rows:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
     return jsonify({'post': _serialize_posts(rows)[0]})
@@ -201,9 +216,12 @@ def delete_post(post_id):
     post = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
     if post is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
-    if post['author_id'] != current_user()['id']:
+    me = current_user()
+    if post['author_id'] != me['id'] and not is_moderator(me):
         return jsonify({'error': 'אפשר למחוק רק פוסטים שלך'}), 403
     execute('DELETE FROM posts WHERE id = %s', (post_id,))
+    # Comments on the post go with it (cascade) — close reports on both
+    resolve_reports('post', post_id, 'content_deleted', me['id'])
     commit()
     return jsonify({'ok': True})
 
@@ -236,12 +254,13 @@ def search():
 
     people = query(
         """SELECT u.* FROM users u
-           WHERE u.username LIKE %s OR u.name LIKE %s
+           WHERE u.is_banned = FALSE AND (u.username LIKE %s OR u.name LIKE %s)
            ORDER BY (u.username LIKE %s) DESC,
                     (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) DESC
            LIMIT 4""",
         (like, like, like.lstrip('%')))
-    posts = query(f'{_POST_SELECT} WHERE p.title LIKE %s OR p.body_html LIKE %s ORDER BY p.id DESC LIMIT 4',
+    posts = query(f'{_POST_SELECT} WHERE u.is_banned = FALSE AND (p.title LIKE %s OR p.body_html LIKE %s) '
+                  'ORDER BY p.id DESC LIMIT 4',
                   (like, like))
     tags = query(
         """SELECT t.name, COUNT(pt.post_id) AS posts FROM tags t

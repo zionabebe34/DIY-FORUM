@@ -8,6 +8,9 @@ import { FollowButton, PeopleList, Spinner, ErrorRow, FOLLOW_EVENT } from './soc
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useInfiniteScroll, usePaginated } from '../lib/hooks.js';
+import { openReport } from './report.jsx';
+import { BanDialog } from './admin.jsx';
+import { toast } from '../lib/toast.jsx';
 
 const COVERS = ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'];
 
@@ -17,6 +20,7 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
   const [status, setStatus] = useState('loading');   // loading | ok | missing | error
   const [tab, setTab] = useState('projects');
   const [editing, setEditing] = useState(false);
+  const [banning, setBanning] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -56,6 +60,15 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
   }
 
   const isMe = person.isMe;
+  const rank = { user: 0, moderator: 1, admin: 2 };
+  const canModerate = user?.isStaff && !isMe && (user.role === 'admin' || rank[user.role] > rank[person.role]);
+  const unban = async () => {
+    try {
+      await api.admin.unban(person.username);
+      setPerson(p => ({ ...p, isBanned: false }));
+      toast(`החסימה של ${person.handle} הוסרה`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
   const firstName = person.name.split(' ')[0];
   const TABS = [
     { id: 'projects',  label: 'פוסטים',  icon: <I.Image size={14}/>, count: person.postsCount },
@@ -69,6 +82,12 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
       <button onClick={() => onView && onView('feed')} className="text-xs font-semibold text-slate-500 hover:text-rust-700 inline-flex items-center gap-1">
         <I.ChevronDown size={14} className="-rotate-90"/> חזרה לפיד
       </button>
+
+      {person.isBanned && (
+        <div role="status" className="rounded-2xl bg-rust-700 text-white px-4 py-3 flex items-center gap-2 text-sm font-bold">
+          <I.Ban size={16}/> החשבון הזה נחסם על ידי צוות הניהול. התוכן שלו מוסתר מהאתר.
+        </div>
+      )}
 
       {/* Hero card */}
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
@@ -108,6 +127,20 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
                     className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm px-4 py-2 rounded-full">
                     <I.Mail size={14}/> הודעה
                   </button>
+                  {user && (
+                    <button onClick={() => openReport({ targetType: 'user', targetId: person.uid, label: person.name })}
+                      title="דיווח על המשתמש" aria-label="דיווח על המשתמש"
+                      className="w-9 h-9 grid place-items-center rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-500">
+                      <I.Flag size={15}/>
+                    </button>
+                  )}
+                  {canModerate && (person.isBanned
+                    ? <button onClick={unban} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-4 py-2 rounded-full">
+                        <I.Shield size={14}/> הסר חסימה
+                      </button>
+                    : <button onClick={() => setBanning(true)} className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-rust-700 text-white font-bold text-sm px-4 py-2 rounded-full">
+                        <I.Ban size={14}/> חסום
+                      </button>)}
                 </>
               )}
             </div>
@@ -177,6 +210,10 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
       )}
       {tab === 'about' && <ProfileAbout person={person} />}
 
+      {banning && (
+        <BanDialog person={person} onClose={() => setBanning(false)}
+          onDone={() => { setBanning(false); setPerson(p => ({ ...p, isBanned: true })); toast(`${person.handle} נחסם/ה`); }} />
+      )}
       {editing && (
         <EditProfileModal onClose={() => setEditing(false)}
           onSaved={(p) => setPerson(prev => ({ ...prev, ...p, followersCount: prev.followersCount,

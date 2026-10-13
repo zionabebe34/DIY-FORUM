@@ -11,7 +11,7 @@ from app import create_app  # noqa: E402
 from seed import apply_schema, connect  # noqa: E402
 
 TEST_DB = os.getenv('DB_NAME', 'handyhub') + '_test'
-TABLES = ['post_tags', 'tags', 'post_images', 'posts', 'follows', 'sessions', 'users']
+TABLES = ['password_resets', 'reports', 'comments', 'post_likes', 'post_tags', 'tags', 'post_images', 'posts', 'follows', 'sessions', 'users']
 
 PNG_1PX = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS'
            b'\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00'
@@ -33,7 +33,8 @@ def app(_schema, tmp_path):
     cur.execute('SET FOREIGN_KEY_CHECKS = 1')
     conn.commit()
     conn.close()
-    return create_app({'DB_NAME': TEST_DB, 'UPLOAD_DIR': str(tmp_path), 'TESTING': True})
+    # MAIL_BACKEND=memory: tests must never send real email, whatever .env says
+    return create_app({'DB_NAME': TEST_DB, 'UPLOAD_DIR': str(tmp_path), 'TESTING': True, 'MAIL_BACKEND': 'memory'})
 
 
 @pytest.fixture
@@ -51,6 +52,17 @@ def make_user(app):
         assert r.status_code == 201, r.get_json()
         return c
     return _make
+
+
+@pytest.fixture
+def set_role():
+    """Give an existing user a role directly in the DB (there is no public API to bootstrap an admin)."""
+    def _set(username, role):
+        conn = connect(TEST_DB)
+        conn.cursor().execute('UPDATE users SET role = %s WHERE username = %s', (role, username))
+        conn.commit()
+        conn.close()
+    return _set
 
 
 @pytest.fixture

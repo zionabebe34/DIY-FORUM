@@ -22,6 +22,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 DEMO_PASSWORD = 'handyhub123'
+DEMO_ROLES = {'daniel_p': 'admin', 'shira.diy': 'moderator'}
 
 # ── Demo people (from the design mock-up) ───────────────────────────────────
 USERS = [
@@ -127,6 +128,18 @@ FOLLOWS = {
     'price_watch': ['yoav_tools'],
 }
 
+# Comment threads for the newest posts (newest first)
+COMMENT_THREADS = [
+    [('yoav_tools', 'איזה ספק נותן את המחיר הכי טוב כרגע?', [('price_watch', 'כרגע ההצעה הזולה ביותר היא אצל ספק אונליין, כולל משלוח.')]),
+     ('daniel_p', 'סוף סוף! חיכיתי לירידה הזו', [])],
+    [('alon_builds', 'ריתוך נקי מאוד. איזה גז מגן השתמשת?', [('iris.makes', 'ארגון טהור, 15 ליטר לדקה.'), ('alon_builds', 'תודה, אנסה!')]),
+     ('benchbot', 'טיפ: בפלדה בעובי 6 מ״מ כדאי להכין שיפוע (bevel) בקצוות לחדירה טובה יותר.', [])],
+    [('shira.diy', 'מהמם! איזה שמן השתמשת לגימור?', [('alon_builds', 'שמן טונג, שלוש שכבות.')]),
+     ('yael.builds', 'הספסל הזה ייראה מושלם במרפסת שלי 😍', [])],
+    [('daniel_p', 'מדריך מעולה, שמרתי.', []),
+     ('iris.makes', 'כמה זמן ייבוש בין השכבות?', [('shira.diy', 'לפחות 4 שעות, ועדיף לילה.')])],
+]
+
 # ── Placeholder images (pure-Python PNG gradients in the site palette) ──────
 PALETTES = {
     'wood': [(0x7a, 0x3e, 0x1e), (0xa8, 0x5a, 0x2b), (0xc9, 0x80, 0x3f), (0xe8, 0xa9, 0x6b)],
@@ -172,6 +185,24 @@ def write_seed_images(upload_dir):
 
 
 # ── Schema + seeding ────────────────────────────────────────────────────────
+# Columns added after a table was first created. `CREATE TABLE IF NOT EXISTS`
+# won't touch an existing table, so these are added with ALTER when missing.
+COLUMN_MIGRATIONS = [
+    ('users', 'role', "ENUM('user', 'moderator', 'admin') NOT NULL DEFAULT 'user'"),
+    ('users', 'is_banned', 'BOOLEAN NOT NULL DEFAULT FALSE'),
+    ('users', 'ban_reason', 'VARCHAR(300) NULL'),
+    ('users', 'banned_at', 'DATETIME NULL'),
+]
+
+
+def migrate_columns(cur, db_name):
+    for table, column, definition in COLUMN_MIGRATIONS:
+        cur.execute('SELECT 1 FROM information_schema.columns '
+                    'WHERE table_schema = %s AND table_name = %s AND column_name = %s',
+                    (db_name, table, column))
+        if not cur.fetchall():
+            cur.execute(f'ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}')
+
 def connect(database=None):
     return mysql.connector.connect(
         host=os.getenv('DB_HOST', 'localhost'), port=int(os.getenv('DB_PORT', '3306')),
@@ -191,6 +222,7 @@ def apply_schema(db_name, reset=False):
     for statement in sql.split(';'):
         if statement.strip():
             cur.execute(statement)
+    migrate_columns(cur, db_name)
     conn.commit()
     conn.close()
 
@@ -217,6 +249,10 @@ def seed(db_name, upload_dir):
              json.dumps(u['skills'], ensure_ascii=False), u.get('verified', False), u.get('is_agent', False),
              u.get('personality'), now - timedelta(days=400 - i * 30)))
         ids[u['username']] = cur.lastrowid
+
+    # Moderation roles for the demo
+    for username, role in DEMO_ROLES.items():
+        cur.execute('UPDATE users SET role = %s WHERE id = %s', (role, ids[username]))
 
     rnd = random.Random(42)
     posts = list(POSTS)
@@ -245,6 +281,23 @@ def seed(db_name, upload_dir):
                 cur.execute('INSERT INTO tags (name) VALUES (%s)', (tag,))
                 tag_ids[tag] = cur.lastrowid
             cur.execute('INSERT INTO post_tags (post_id, tag_id) VALUES (%s, %s)', (post_id, tag_ids[tag]))
+
+    # Likes: every user hearts a random ~40% of the posts
+    cur.execute('SELECT id FROM posts')
+    post_ids = [r[0] for r in cur.fetchall()]
+    for uid in ids.values():
+        for pid in rnd.sample(post_ids, k=int(len(post_ids) * 0.4)):
+            cur.execute('INSERT INTO post_likes (user_id, post_id) VALUES (%s, %s)', (uid, pid))
+
+    # A few comment threads on the newest posts: (commenter, text, [(replier, text), ...])
+    newest = sorted(post_ids)[-len(COMMENT_THREADS):]
+    for pid, threads in zip(reversed(newest), COMMENT_THREADS):
+        for who, text, replies in threads:
+            cur.execute('INSERT INTO comments (post_id, author_id, body) VALUES (%s, %s, %s)', (pid, ids[who], text))
+            top_id = cur.lastrowid
+            for replier, reply in replies:
+                cur.execute('INSERT INTO comments (post_id, author_id, parent_id, body) VALUES (%s, %s, %s, %s)',
+                            (pid, ids[replier], top_id, reply))
 
     for follower, followees in FOLLOWS.items():
         for followee in followees:

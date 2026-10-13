@@ -66,7 +66,7 @@ function Stars({ value = 0, size = 14, showNumber = true }) {
 }
 
 // --- Profile dropdown --------------------------------------------------------
-function ProfileMenu({ onSign, onOpenSaved, onOpenNotifications, onOpenProfile, onOpenSettings }) {
+function ProfileMenu({ onSign, onOpenSaved, onOpenNotifications, onOpenProfile, onOpenSettings, onOpenAdmin }) {
   const { user, logout } = useAuth();
   const authed = !!user;
   const [open, setOpen] = useState(false);
@@ -101,6 +101,9 @@ function ProfileMenu({ onSign, onOpenSaved, onOpenNotifications, onOpenProfile, 
               <MenuItem icon={<I.Bell size={16}/>}     label="התראות"
                         onClick={() => { setOpen(false); onOpenNotifications && onOpenNotifications(); }} />
               <MenuItem icon={<I.Settings size={16}/>} label="עריכת פרופיל" onClick={() => { setOpen(false); onOpenSettings && onOpenSettings(); }} />
+              {user.isStaff && (
+                <MenuItem icon={<I.Shield size={16}/>} label="לוח ניהול" accent onClick={() => { setOpen(false); onOpenAdmin && onOpenAdmin(); }} />
+              )}
               <div className="my-1 border-t border-slate-100" />
               <MenuItem icon={<I.LogOut size={16}/>} label="התנתק" danger onClick={() => { setOpen(false); logout(); }} />
             </>

@@ -4,7 +4,10 @@ import { HUB_DATA } from './data.jsx';
 import { UI } from './ui.jsx';
 import { AN } from './anims.jsx';
 import DOMPurify from 'dompurify';
-import { useAuth } from '../lib/auth.jsx';
+import { useAuth, requestLogin } from '../lib/auth.jsx';
+import { Comments } from './comments.jsx';
+import { openReport } from './report.jsx';
+import { toast } from '../lib/toast.jsx';
 import { api, minutesSince } from '../lib/api.js';
 import { useNow } from '../lib/hooks.js';
 // Post card variants for HandyHub feed — editorial / workshop refresh
@@ -36,27 +39,46 @@ function PostMenu({ post, onDeleted, dark }) {
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
-  const mine = user && post.author && user.username === post.author.username && typeof post.id === 'number';
-  if (!mine) return null;
+  const live = typeof post.id === 'number';
+  const mine = user && post.author && user.username === post.author.username;
+  const canDelete = live && (mine || user?.isStaff);
+  const canReport = live && user && !mine;
+  if (!canDelete && !canReport) return null;
 
   const remove = async () => {
-    if (!window.confirm('למחוק את הפוסט? לא ניתן לבטל.')) return;
+    const msg = mine ? 'למחוק את הפוסט? לא ניתן לבטל.' : `למחוק את הפוסט של ${post.author.name} (פעולת ניהול)?`;
+    if (!window.confirm(msg)) return;
     setBusy(true);
-    try { await api.deletePost(post.id); onDeleted && onDeleted(post.id); }
-    catch (e) { alert(e.message); setBusy(false); }
+    try {
+      await api.deletePost(post.id);
+      if (!mine) toast('הפוסט נמחק');
+      onDeleted && onDeleted(post.id);
+    } catch (e) { alert(e.message); setBusy(false); }
   };
+  const report = () => {
+    setOpen(false);
+    openReport({ targetType: 'post', targetId: post.id, label: `הפוסט של ${post.author.name}` });
+  };
+  const item = "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 text-right";
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(o => !o)} aria-label="אפשרויות"
+      <button onClick={() => setOpen(o => !o)} aria-label="אפשרויות" aria-expanded={open}
         className={"p-1.5 rounded-lg " + (dark ? "hover:bg-white/10 text-slate-400" : "hover:bg-slate-100 text-slate-400")}>
         <I.MoreH size={18} />
       </button>
       {open && (
-        <div className="absolute left-0 mt-1 w-40 rounded-xl bg-white shadow-pop border border-slate-200 p-1 z-20">
-          <button onClick={remove} disabled={busy}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rust-700 hover:bg-rust-50 disabled:opacity-50">
-            <I.Trash size={15}/> {busy ? 'מוחק…' : 'מחק פוסט'}
-          </button>
+        <div className="absolute left-0 mt-1 w-48 rounded-xl bg-white shadow-pop border border-slate-200 p-1 z-20">
+          {canReport && (
+            <button onClick={report} className={item + " text-slate-700 hover:bg-slate-50"}>
+              <I.Flag size={15}/> דיווח על הפוסט
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={remove} disabled={busy} className={item + " text-rust-700 hover:bg-rust-50"}>
+              {mine ? <I.Trash size={15}/> : <I.Shield size={15}/>}
+              {busy ? 'מוחק…' : mine ? 'מחק פוסט' : 'מחק (ניהול)'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -100,28 +122,67 @@ function PostHeader({ post, kind, onOpenProfile, onDeleted }) {
   );
 }
 
-function PostActions({ stats, saved, liked, onLike, onSave }) {
+// Like / comment / save bar. Real posts (numeric id) talk to the API; the design's
+// mock posts (saved panel) keep the old local-only behaviour.
+function PostFooter({ post, onOpenProfile }) {
+  const { user } = useAuth();
+  const live = typeof post.id === 'number';
+  const [liked, setLiked] = useStateP(!!post.likedByMe);
+  const [likes, setLikes] = useStateP(post.stats.likes);
+  const [commentCount, setCommentCount] = useStateP(post.stats.comments);
+  const [open, setOpen] = useStateP(false);
+  const [saved, setSaved] = useStateP(false);
+  const busy = useRefP(false);
+
+  // A refreshed feed (e.g. after login) brings new counts / liked flags
+  useEffectP(() => { setLiked(!!post.likedByMe); setLikes(post.stats.likes); }, [post.likedByMe, post.stats.likes]);
+  useEffectP(() => { setCommentCount(post.stats.comments); }, [post.stats.comments]);
+
+  const toggleLike = async () => {
+    const next = !liked;
+    if (!live) { setLiked(next); setLikes(n => n + (next ? 1 : -1)); return; }
+    if (!user) { requestLogin(); return; }
+    if (busy.current) return;
+    busy.current = true;
+    setLiked(next);                                  // optimistic
+    setLikes(n => n + (next ? 1 : -1));
+    try {
+      const r = next ? await api.like(post.id) : await api.unlike(post.id);
+      setLiked(r.liked);
+      setLikes(r.likes_count);
+    } catch {
+      setLiked(!next);                               // roll back
+      setLikes(n => n + (next ? -1 : 1));
+    } finally {
+      busy.current = false;
+    }
+  };
+
   return (
-    <div className="flex items-center justify-between px-3 py-2 border-t hairline">
-      <div className="flex items-center gap-1">
-        <AN.LikeHeart liked={liked} count={stats.likes + (liked ? 1 : 0)} onToggle={onLike} />
-        <ActionBtn icon={<I.MessageCircle size={18} />} label={stats.comments} />
-        <ActionBtn icon={<I.Share size={18} />} label="שיתוף" hideLabelOnMobile />
+    <>
+      <div className="flex items-center justify-between px-3 py-2 border-t hairline">
+        <div className="flex items-center gap-1">
+          <AN.LikeHeart liked={liked} count={likes} onToggle={toggleLike} />
+          <ActionBtn icon={<I.MessageCircle size={18} />} label={commentCount} active={open}
+                     onClick={() => live && setOpen(o => !o)} title="תגובות" />
+          <ActionBtn icon={<I.Share size={18} />} label="שיתוף" hideLabelOnMobile />
+        </div>
+        <button onClick={() => setSaved(v => !v)}
+          className={"inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition " +
+                     (saved ? "bg-rust-600 text-white hover:bg-rust-700"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200")}>
+          <I.Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />
+          <span>{saved ? 'נשמר' : 'שמירה'}</span>
+        </button>
       </div>
-      <button onClick={onSave}
-        className={"inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition " +
-                   (saved ? "bg-rust-600 text-white hover:bg-rust-700"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200")}>
-        <I.Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />
-        <span>{saved ? 'נשמר' : 'שמירה'}</span>
-      </button>
-    </div>
+      {open && <Comments post={post} onOpenProfile={onOpenProfile} onCountChange={setCommentCount} />}
+    </>
   );
 }
 
-function ActionBtn({ icon, label, onClick, active, activeColor = 'text-slate-700', hideLabelOnMobile }) {
+function ActionBtn({ icon, label, onClick, active, activeColor = 'text-slate-700', hideLabelOnMobile, title }) {
   return (
-    <button onClick={onClick}
+    <button onClick={onClick} title={title} aria-pressed={active ? true : undefined}
       className={"inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition " +
                  (active ? activeColor + ' font-semibold' : 'text-slate-600')}>
       {icon}
@@ -200,8 +261,6 @@ function ImageOverlayActions({ primary = 'פתח פרויקט' }) {
 
 // --- Variant: Standard project post -----------------------------------------
 function ProjectPost({ post, onOpenProfile, onPickTag, onDeleted }) {
-  const [liked, setLiked] = useStateP(false);
-  const [saved, setSaved] = useStateP(false);
   const hasMockMedia = !post.images && post.bg;   // design mock posts (saved panel)
   return (
     <article className="paper-card rounded-2xl shadow-card overflow-hidden">
@@ -223,16 +282,13 @@ function ProjectPost({ post, onOpenProfile, onPickTag, onDeleted }) {
       <div className={post.images?.length || hasMockMedia ? 'pt-3' : ''}>
         <TagRow tags={post.tags} onPickTag={onPickTag} />
       </div>
-      <PostActions stats={post.stats} liked={liked} saved={saved}
-                   onLike={() => setLiked(l => !l)} onSave={() => setSaved(s => !s)} />
+      <PostFooter post={post} onOpenProfile={onOpenProfile} />
     </article>
   );
 }
 
 // --- Variant: Tutorial card --------------------------------------------------
 function TutorialPost({ post, onOpenProfile, onPickTag, onDeleted }) {
-  const [liked, setLiked] = useStateP(false);
-  const [saved, setSaved] = useStateP(false);
   return (
     <article className="paper-card rounded-2xl shadow-card overflow-hidden">
       <PostHeader post={post} kind="tutorial" onOpenProfile={onOpenProfile} onDeleted={onDeleted} />
@@ -257,16 +313,13 @@ function TutorialPost({ post, onOpenProfile, onPickTag, onDeleted }) {
       </ol>
 
       <TagRow tags={post.tags} onPickTag={onPickTag} />
-      <PostActions stats={post.stats} liked={liked} saved={saved}
-                   onLike={() => setLiked(l => !l)} onSave={() => setSaved(s => !s)} />
+      <PostFooter post={post} onOpenProfile={onOpenProfile} />
     </article>
   );
 }
 
 // --- Variant: Store review post ---------------------------------------------
 function ReviewPost({ post, onOpenProfile, onOpenStore }) {
-  const [liked, setLiked] = useStateP(true);
-  const [saved, setSaved] = useStateP(false);
   const openStore = () => post.shop?.id && onOpenStore && onOpenStore(post.shop.id);
   return (
     <article className="paper-card rounded-2xl shadow-card overflow-hidden">
@@ -310,8 +363,7 @@ function ReviewPost({ post, onOpenProfile, onOpenStore }) {
         )}
       </button>
 
-      <PostActions stats={post.stats} liked={liked} saved={saved}
-                   onLike={() => setLiked(l => !l)} onSave={() => setSaved(s => !s)} />
+      <PostFooter post={post} onOpenProfile={onOpenProfile} />
     </article>
   );
 }
