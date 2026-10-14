@@ -43,6 +43,8 @@ erDiagram
     USERS ||--o{ SAVED_LISTINGS : "bookmarks"
     LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
     USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ TOTP_RECOVERY_CODES : "backup codes"
+    USERS ||--o{ LOGIN_CHALLENGES : "2FA login step"
     USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
     POSTS |o--o{ NOTIFICATIONS : "about"
     POSTS |o--o{ POSTS : "shared in"
@@ -66,6 +68,10 @@ erDiagram
         bool is_banned
         varchar ban_reason
         datetime banned_at
+        bool totp_enabled "two-factor login on"
+        varchar totp_secret "TOTP secret (base32)"
+        varchar totp_pending "secret during setup"
+        bigint totp_last_step "replay protection"
         datetime created_at
     }
     SESSIONS {
@@ -186,6 +192,20 @@ erDiagram
         int resolved_by FK
         datetime created_at
         datetime resolved_at
+    }
+    TOTP_RECOVERY_CODES {
+        int id PK
+        int user_id FK
+        char code_hash "SHA-256, single use"
+        datetime used_at
+    }
+    LOGIN_CHALLENGES {
+        int id PK
+        int user_id FK
+        char token_hash UK "SHA-256 of the challenge"
+        tinyint attempts "max 5"
+        datetime created_at
+        datetime expires_at "5 minutes"
     }
     SAVED_POSTS {
         int user_id PK, FK

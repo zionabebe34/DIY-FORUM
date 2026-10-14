@@ -121,6 +121,7 @@ def private_user(row):
     """The logged-in user's own view of themselves (adds email)."""
     data = public_user(row)
     data['email'] = row['email']
+    data['two_factor'] = bool(row.get('totp_enabled'))
     return data
 
 

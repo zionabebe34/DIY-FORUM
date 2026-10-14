@@ -246,11 +246,19 @@ describe('mobile drawer', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/admin'));
     await openDrawer();
     await user.click(drawer().getByRole('button', { name: /^פיד/ }));
-    for (const label of ['התראות', 'הודעות', 'שמורים']) {
+    for (const label of [/^התראות/, /^הודעות/, /^שמורים/]) {
       await openDrawer();
       await user.click(drawer().getByRole('button', { name: label }));
       await user.keyboard('{Escape}');
     }
+    // unread counts (hidden navbar icons on phones) show in the menu and as a dot on ☰
+    await waitFor(() => expect(screen.getByLabelText('יש עדכונים חדשים')).toBeInTheDocument());
+    await openDrawer();
+    expect(drawer().getByRole('button', { name: /^התראות/ })).toHaveTextContent('3');
+    // suggested makers + hot tags live in the menu on narrow screens
+    await user.click(await drawer().findByRole('button', { name: /woodwork/ }));
+    await waitFor(() => expect(window.location.hash).toBe('#/tag/woodwork'));
+    expect(document.querySelector('aside.animate-in-rtl-drawer')).toBeNull();
     await openDrawer();
     fireEvent.click(document.querySelector('.fixed.inset-0.z-50.lg\\:hidden'));   // backdrop closes it
     await waitFor(() => expect(document.querySelector('aside.animate-in-rtl-drawer')).toBeNull());

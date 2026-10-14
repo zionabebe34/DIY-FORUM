@@ -17,6 +17,7 @@ const I = {
   Mail:      (p) => <Svg {...p}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></Svg>,
   Plus:      (p) => <Svg {...p}><path d="M5 12h14"/><path d="M12 5v14"/></Svg>,
   ChevronDown:(p)=> <Svg {...p}><path d="m6 9 6 6 6-6"/></Svg>,
+  Copy:      (p) => <Svg {...p}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></Svg>,
   ArrowRight:(p)=> <Svg {...p}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></Svg>,
   Heart:     (p) => <Svg {...p}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></Svg>,
   MessageCircle:(p)=> <Svg {...p}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></Svg>,

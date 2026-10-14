@@ -4,6 +4,9 @@
 
 const iso = (minutesAgo = 0) => new Date(Date.now() - minutesAgo * 60000).toISOString().replace(/\.\d+Z$/, 'Z');
 
+export const TOTP_BACKUP = ['aaaa-bbbb-cccc', 'dddd-eeee-ffff', 'gggg-hhhh-iiii', 'jjjj-kkkk-llll',
+                            'mmmm-nnnn-oooo', 'pppp-qqqq-rrrr', 'ssss-tttt-uuuu', 'vvvv-wwww-xxxx'];
+
 export function createFakeServer() {
   let nextId = 100;
   const id = () => ++nextId;
@@ -85,7 +88,7 @@ export function createFakeServer() {
     location: u.location, skills: u.skills, verified: u.verified, is_agent: u.is_agent, role: u.role,
     is_banned: u.is_banned, created_at: u.created_at, ...extra,
   });
-  const priv = (u) => ({ ...pub(u), email: u.email });
+  const priv = (u) => ({ ...pub(u), email: u.email, two_factor: !!u.totp });
   const following = (a, b) => db.follows.some(f => f.follower === a && f.followee === b);
   const postOut = (p, embed = true) => {
     const u = db.users.find(x => x.id === p.author);
@@ -140,9 +143,55 @@ export function createFakeServer() {
     const u = db.users.find(x => x.email === body.login || x.username === body.login.replace(/^@/, ''));
     if (!u || u.password !== body.password) return err(401, 'פרטי התחברות שגויים');
     if (u.is_banned) return err(403, 'החשבון נחסם על ידי צוות הניהול');
+    if (u.totp) {
+      db.challenge = { token: 'ch-' + u.username, user: u.id, attempts: 0 };
+      return ok({ two_factor_required: true, challenge: db.challenge.token });
+    }
     db.sessionUser = u.id;
     return ok({ user: priv(u) });
   });
+  // 2FA — the fake authenticator always shows 123456; backup codes are listed in TOTP_BACKUP
+  on('POST', '/api/auth/login/2fa', (_, __, body) => {
+    const c = db.challenge;
+    if (!c || c.token !== body.challenge) return err(401, 'פג תוקף ההתחברות — הזינו שוב את הסיסמה.');
+    const u = db.users.find(x => x.id === c.user);
+    const backup = u.backup.indexOf((body.code || '').toLowerCase());
+    if (body.code !== '123456' && backup < 0) {
+      c.attempts += 1;
+      if (c.attempts >= 3) { db.challenge = null; return err(429, 'יותר מדי ניסיונות שגויים — הזינו שוב את הסיסמה.'); }
+      return err(401, 'הקוד שגוי או שפג תוקפו');
+    }
+    db.challenge = null;
+    db.sessionUser = u.id;
+    if (backup >= 0) { u.backup.splice(backup, 1); return ok({ user: priv(u), recovery_codes_left: u.backup.length }); }
+    return ok({ user: priv(u) });
+  });
+  on('GET', '/api/auth/2fa', needLogin(() => ok({ enabled: !!me().totp, recovery_codes_left: me().totp ? me().backup.length : 0 })));
+  on('POST', '/api/auth/2fa/setup', needLogin(() => {
+    if (me().totp) return err(400, 'אימות דו-שלבי כבר פעיל');
+    return ok({ secret: 'JBSWY3DPEHPK3PXP', otpauth_uri: 'otpauth://totp/HandyHub', qr: 'data:image/svg+xml,qr' });
+  }));
+  on('POST', '/api/auth/2fa/enable', needLogin((_, __, body) => {
+    if (body.code !== '123456') return err(400, 'הקוד שגוי — ודאו שהשעה בטלפון מעודכנת ונסו את הקוד הנוכחי');
+    me().totp = true;
+    me().backup = [...TOTP_BACKUP];
+    return ok({ enabled: true, recovery_codes: [...TOTP_BACKUP] });
+  }));
+  const confirmIdentity = (body) => body.password !== me().password ? err(400, 'הסיסמה שגויה')
+    : body.code !== '123456' && !me().backup.includes(body.code) ? err(400, 'הקוד שגוי או שפג תוקפו') : null;
+  on('POST', '/api/auth/2fa/disable', needLogin((_, __, body) => {
+    const failed = confirmIdentity(body);
+    if (failed) return failed;
+    me().totp = false;
+    me().backup = [];
+    return ok({ enabled: false });
+  }));
+  on('POST', '/api/auth/2fa/recovery-codes', needLogin((_, __, body) => {
+    const failed = confirmIdentity(body);
+    if (failed) return failed;
+    me().backup = TOTP_BACKUP.map(c => c.replace('a', 'n'));
+    return ok({ recovery_codes: [...me().backup] });
+  }));
   on('POST', '/api/auth/signup', (_, __, body) => {
     if (db.users.some(u => u.username === body.username)) return err(409, 'שם המשתמש תפוס');
     const u = { id: id(), username: body.username, name: body.name, email: body.email, password: body.password, bio: '',

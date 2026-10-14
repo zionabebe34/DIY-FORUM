@@ -16,8 +16,8 @@ Talk to the user in Hebrew; they work section by section and run `git commit` th
 - Run everything: `./start.sh`. Mail: `MAIL_BACKEND=smtp` with Gmail app password in `backend/.env` (works); `console` prints emails.
 
 ## Tests (keep ≥ 85% — course requirement)
-- Backend: `cd backend && .venv/bin/python -m pytest` → 78 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
-- Frontend: `cd frontend && npm run coverage` → 103 tests, 98%. Runs the whole app against an in-memory fake API
+- Backend: `cd backend && .venv/bin/python -m pytest` → 85 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
+- Frontend: `cd frontend && npm run coverage` → 109 tests, 98%. Runs the whole app against an in-memory fake API
   (`src/test/fakeServer.js` — keep it in sync when adding endpoints; `server.fetch.failNext = 'METHOD /path'` simulates one error).
 
 ## Status
@@ -29,18 +29,23 @@ Done:
 - Real notifications (`notifications.py` helpers called from the routes: like/comment/reply/@mention/follow/save + welcome;
   undo deletes them; bell polls `/api/notifications/unread`) and saved items (posts + listings, `src/lib/saved.js`
   keeps cards in sync via the `hh:saved` event). `seed.py` backfills notifications from existing activity.
+- Part 3 chosen: c. DMs (done, real-time alert = polling + toast) · a.ii 2FA TOTP (`routes/twofa_routes.py`, pyotp +
+  segno QR, backup codes, login challenge; UI `components/security.jsx` + code step in AuthModal) · b. responsive
+  (checked at 375px: no overflow; phone menu has unread badges + suggested makers + hot tags).
 - Share posts (`posts.shared_post_id`, composer `sharedPost` mode, quoted preview) and "contact the maker" — card
   buttons fire window events from `src/lib/intents.js` that App handles. Sticky sidebar scrolls on its own.
 
 Remaining (user's order, ask before starting):
-- Part 2 steps 3–6 (deferred by the user): AI layer (provider not chosen yet — ask), auto-correct / suggested posts /
-  suggested comments, toxicity check before publishing, 10 autonomous agent accounts with personalities (`users.is_agent`,
-  `users.personality` already exist). Follow lecture 8 advice: guardrails, fallbacks, prompt-injection defense, eval set, logging.
-- Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — user said AWS goes last.
-- Part 3: choose 3 optional features (likely: responsive design — mostly done; recommendation engine — suggested users done,
-  trending needs a 24h window; DMs done; Docker comes with the AWS deploy).
+- Part 2 steps 3–6 — AI on **AWS Bedrock** (course account, region eu-central-1, auth = Bedrock API key in
+  `backend/.env` as AWS_BEARER_TOKEN_BEDROCK; user fills it in — never print it). Work in progress is parked in
+  `git stash` "ai-wip" (ai.py layer: client/timeout/fallback/ai_calls log/injection rule; toxicity.py: rules → Claude
+  tool verdict ok/warn/block → fail-open, warn+publish = automatic report). Mantle endpoint has no structured outputs →
+  tool + own validation. Model not chosen yet (ask which are enabled in Model access); then writing assist + 10 agents.
+  Follow lecture 8: guardrails, fallbacks, prompt-injection defense, eval set, logging.
+- Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — after the AI.
 
 ## Gotchas
 - The user's MySQL runs as a macOS system service; never print secrets from `backend/.env`.
 - iCloud: project was moved out of `~/Desktop` (iCloud evicted venv/node_modules files and Vite kept reloading).
+- `.claude/launch.json` has `backend` + `frontend` entries (preview tool); stop them before the user runs `./start.sh`.
 - Tailwind only sees full class names — never build classes like `text-${color}-700`.

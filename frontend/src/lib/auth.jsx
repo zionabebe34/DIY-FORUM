@@ -13,10 +13,21 @@ export function AuthProvider({ children }) {
     api.me().then(u => setUser(toPerson(u))).catch(() => setUser(null)).finally(() => setReady(true));
   }, []);
 
+  // → { user } when logged in, or { challenge } when the account needs an authenticator code next
   const login = useCallback(async (loginId, password) => {
-    const u = toPerson(await api.login(loginId, password));
+    const d = await api.login(loginId, password);
+    if (d.two_factor_required) return { challenge: d.challenge };
+    const u = toPerson(d.user);
     setUser(u);
-    return u;
+    return { user: u };
+  }, []);
+
+  // Step 2 of a 2FA login: an authenticator code or a backup code
+  const loginWithCode = useCallback(async (challenge, code) => {
+    const d = await api.loginWithCode(challenge, code);
+    const u = toPerson(d.user);
+    setUser(u);
+    return { user: u, recoveryCodesLeft: d.recovery_codes_left };
   }, []);
 
   const signup = useCallback(async (fields) => {
@@ -31,8 +42,8 @@ export function AuthProvider({ children }) {
 
   const updateUser = useCallback((rawUser) => setUser(toPerson(rawUser)), []);
 
-  const value = useMemo(() => ({ user, ready, login, signup, logout, updateUser }),
-    [user, ready, login, signup, logout, updateUser]);
+  const value = useMemo(() => ({ user, ready, login, loginWithCode, signup, logout, updateUser }),
+    [user, ready, login, loginWithCode, signup, logout, updateUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

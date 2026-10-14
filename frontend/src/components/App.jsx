@@ -11,6 +11,7 @@ import { Profile, EditProfileModal } from './profile.jsx';
 import { Spinner, ErrorRow } from './social.jsx';
 import { AdminDashboard } from './admin.jsx';
 import { ResetPassword } from './reset.jsx';
+import { SecurityModal } from './security.jsx';
 import { ReportHost } from './report.jsx';
 import { Toaster, toast } from '../lib/toast.jsx';
 import { inquiryText } from './market.jsx';
@@ -69,7 +70,7 @@ function useHashRoute() {
 }
 
 // ====================== NAVBAR ==============================================
-function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNotifications, onOpenSaved, onOpenProfile, onOpenSettings, onPickTag, unreadMessages, unreadNotifications }) {
+function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNotifications, onOpenSaved, onOpenProfile, onOpenSettings, onOpenSecurity, onPickTag, unreadMessages, unreadNotifications }) {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
@@ -96,8 +97,12 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
     <header className="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
         {/* Mobile menu */}
-        <button onClick={onMobileMenu} className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg" aria-label="תפריט">
+        <button onClick={onMobileMenu} className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg relative" aria-label="תפריט">
           <I.Menu size={20} />
+          {/* the bell / mail icons are hidden on phones → a dot says something new is waiting in the menu */}
+          {(unreadMessages > 0 || unreadNotifications > 0) && (
+            <span className="sm:hidden absolute top-1 left-1 w-2.5 h-2.5 bg-rust-600 rounded-full ring-2 ring-white" aria-label="יש עדכונים חדשים"></span>
+          )}
         </button>
 
         {/* Logo */}
@@ -236,7 +241,8 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
             </button>
           )}
           <UI.ProfileMenu onSign={onSign} onOpenSaved={onOpenSaved} onOpenNotifications={onOpenNotifications}
-                          onOpenProfile={onOpenProfile} onOpenSettings={onOpenSettings} onOpenAdmin={() => onView('admin')} />
+                          onOpenProfile={onOpenProfile} onOpenSettings={onOpenSettings} onOpenSecurity={onOpenSecurity}
+                          onOpenAdmin={() => onView('admin')} />
         </div>
       </div>
     </header>
@@ -422,9 +428,11 @@ function FeedTab({ active, onClick, icon, label }) {
 
 // ====================== AUTH MODAL ==========================================
 function AuthModal({ initialMode = 'signup', onClose }) {
-  const { login, signup } = useAuth();
-  const [mode, setMode] = useState(initialMode);
-  const [fields, setFields] = useState({ name: '', username: '', email: '', login: '', password: '' });
+  const { login, loginWithCode, signup } = useAuth();
+  const [mode, setMode] = useState(initialMode);      // signup | login | forgot | twofa
+  const [fields, setFields] = useState({ name: '', username: '', email: '', login: '', password: '', code: '' });
+  const [challenge, setChallenge] = useState(null);   // 2FA: step 1 passed, waiting for the code
+  const [useBackup, setUseBackup] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sentMessage, setSentMessage] = useState('');   // forgot-password confirmation
@@ -447,13 +455,31 @@ function AuthModal({ initialMode = 'signup', onClose }) {
         setBusy(false);
         return;
       }
-      if (mode === 'signup') {
+      if (mode === 'twofa') {
+        const r = await loginWithCode(challenge, fields.code);
+        if (r.recoveryCodesLeft !== undefined) {
+          toast(`התחברת עם קוד גיבוי — נותרו ${r.recoveryCodesLeft}. אפשר ליצור חדשים ב"אבטחת חשבון".`);
+        }
+      } else if (mode === 'signup') {
         await signup({ name: fields.name, username: fields.username, email: fields.email, password: fields.password });
       } else {
-        await login(fields.login, fields.password);
+        const r = await login(fields.login, fields.password);
+        if (r.challenge) {        // right password, the account has 2FA → ask for the code
+          setChallenge(r.challenge);
+          setFields(f => ({ ...f, code: '' }));
+          setUseBackup(false);
+          setMode('twofa');
+          setBusy(false);
+          return;
+        }
       }
       onClose();
     } catch (err) {
+      // the challenge expired / too many wrong codes → start over from the password
+      if (mode === 'twofa' && (err.status === 429 || /^(פג תוקף|יותר מדי)/.test(err.message))) {
+        setChallenge(null);
+        setMode('login');
+      }
       setError(err.message);
       setBusy(false);
     }
@@ -465,6 +491,7 @@ function AuthModal({ initialMode = 'signup', onClose }) {
     signup: ['בואו נבנה דברים', 'תשתפו פרויקטים, תמצאו כלים, ותלמדו מיוצרים אחרים.'],
     login:  ['טוב שחזרת', 'התחברו עם האימייל או שם המשתמש.'],
     forgot: ['שכחתם סיסמה?', 'הזינו את האימייל של החשבון ונשלח אליו קישור לבחירת סיסמה חדשה.'],
+    twofa:  ['אימות דו-שלבי', 'פתחו את אפליקציית האימות בטלפון והזינו את הקוד בן 6 הספרות.'],
   };
 
   return (
@@ -480,7 +507,22 @@ function AuthModal({ initialMode = 'signup', onClose }) {
         </div>
         <h2 className="font-display font-bold text-3xl text-slate-900 mt-3">{TITLES[mode][0]}</h2>
         <p className="text-sm text-slate-500 mt-1">{TITLES[mode][1]}</p>
-        {mode === 'forgot' ? (
+        {mode === 'twofa' ? (
+          <div className="space-y-2 mt-5">
+            {useBackup ? (
+              <Field key="backup" label="קוד גיבוי" placeholder="a1b2-c3d4-e5f6" value={fields.code} onChange={set('code')}
+                     required dir="ltr" autoComplete="off" autoFocus />
+            ) : (
+              <Field key="totp" label="קוד אימות" placeholder="123456" value={fields.code} onChange={set('code')}
+                     required dir="ltr" inputMode="numeric" pattern="[0-9 ]{6,7}" maxLength={7}
+                     autoComplete="one-time-code" autoFocus className="tracking-[0.4em] text-center text-lg font-mono" />
+            )}
+            <button type="button" onClick={() => { setUseBackup(b => !b); setFields(f => ({ ...f, code: '' })); setError(''); }}
+              className="text-xs font-semibold text-rust-700 hover:underline">
+              {useBackup ? 'שימוש בקוד מהאפליקציה' : 'אין לי גישה לטלפון — שימוש בקוד גיבוי'}
+            </button>
+          </div>
+        ) : mode === 'forgot' ? (
           <div className="space-y-2 mt-5">
             {sentMessage ? (
               <div role="status" className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm px-3 py-3 flex gap-2">
@@ -517,10 +559,10 @@ function AuthModal({ initialMode = 'signup', onClose }) {
         {!(mode === 'forgot' && sentMessage) && (
           <button type="submit" disabled={busy}
             className="w-full mt-5 bg-rust-600 hover:bg-rust-700 disabled:opacity-60 text-white font-bold rounded-lg py-2.5">
-            {busy ? 'רגע…' : { signup: 'הרשמה', login: 'התחברות', forgot: 'שלחו לי קישור' }[mode]}
+            {busy ? 'רגע…' : { signup: 'הרשמה', login: 'התחברות', forgot: 'שלחו לי קישור', twofa: 'אימות והתחברות' }[mode]}
           </button>
         )}
-        {mode === 'forgot' ? (
+        {mode === 'forgot' || mode === 'twofa' ? (
           <div className="text-center text-sm text-slate-500 mt-3">
             <button type="button" onClick={() => goTo('login')} className="text-rust-700 font-semibold hover:underline">חזרה להתחברות</button>
           </div>
@@ -538,53 +580,62 @@ function AuthModal({ initialMode = 'signup', onClose }) {
   );
 }
 
-function Field({ label, ...rest }) {
+function Field({ label, className = '', ...rest }) {
   return (
     <label className="block">
       <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{label}</span>
-      <input {...rest} className="mt-1 w-full rounded-lg border border-slate-200 focus:border-rust-500 focus:ring-2 focus:ring-rust-500/20 outline-none px-3 py-2 text-sm" />
+      <input {...rest} className={"mt-1 w-full rounded-lg border border-slate-200 focus:border-rust-500 focus:ring-2 focus:ring-rust-500/20 outline-none px-3 py-2 text-sm " + className} />
     </label>
   );
 }
 
 // ====================== MOBILE DRAWER =======================================
-function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotifications, onOpenSaved }) {
+function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotifications, onOpenSaved,
+                       onOpenProfile, onPickTag, onSign, unreadMessages, unreadNotifications }) {
   const { user } = useAuth();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 lg:hidden" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
-      <aside className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-pop p-4 animate-in-rtl-drawer" onClick={(e) => e.stopPropagation()}>
+      <aside className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-pop p-4 overflow-y-auto overscroll-contain animate-in-rtl-drawer"
+             onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div className="inline-flex items-center gap-2">
             <span className="w-9 h-9 rounded-lg bg-slate-900 text-rust-400 grid place-items-center"><I.Hammer size={18} strokeWidth={2.5} /></span>
             <span className="font-display font-bold text-lg text-slate-900">HandyHub</span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><I.X size={18} /></button>
+          <button onClick={onClose} aria-label="סגור תפריט" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><I.X size={18} /></button>
         </div>
         <nav className="space-y-1">
           <DrawerLink active={view === 'feed'}        onClick={() => { onView('feed'); onClose(); }}        icon={<I.Globe size={18}/>}       label="פיד" />
           <DrawerLink active={view === 'marketplace'} onClick={() => { onView('marketplace'); onClose(); }} icon={<I.ShoppingBag size={18}/>} label="שוק" />
           <DrawerLink active={view === 'stores'}      onClick={() => { onView('stores'); onClose(); }}      icon={<I.Star size={18}/>}        label="ביקורות חנויות" />
           <div className="my-2 border-t border-slate-100"></div>
-          <DrawerLink icon={<I.Bell size={18}/>}  onClick={onOpenNotifications} label="התראות" />
-          <DrawerLink onClick={onOpenMessages} icon={<I.Mail size={18}/>}  label="הודעות" />
+          <DrawerLink icon={<I.Bell size={18}/>}  onClick={onOpenNotifications} label="התראות" badge={unreadNotifications} />
+          <DrawerLink onClick={onOpenMessages} icon={<I.Mail size={18}/>}  label="הודעות" badge={unreadMessages} />
           <DrawerLink onClick={onOpenSaved} icon={<I.Bookmark size={18}/>} label="שמורים" />
           {user?.isStaff && (
             <DrawerLink active={view === 'admin'} onClick={() => { onView('admin'); onClose(); }} icon={<I.Shield size={18}/>} label="לוח ניהול" />
           )}
         </nav>
+        {/* On wide screens these live in the side column; on phones / tablets, here */}
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <SECTIONS.Sidebar onOpenProfile={(u) => { onOpenProfile(u); onClose(); }}
+                            onPickTag={(t) => { onPickTag(t); onClose(); }} onSign={(m) => { onSign(m); onClose(); }} />
+        </div>
       </aside>
     </div>
   );
 }
 
-function DrawerLink({ active, onClick, icon, label }) {
+function DrawerLink({ active, onClick, icon, label, badge }) {
   return (
     <button onClick={onClick}
       className={"w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition " +
                  (active ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50")}>
-      <span className={active ? "text-rust-400" : "text-slate-500"}>{icon}</span>{label}
+      <span className={active ? "text-rust-400" : "text-slate-500"}>{icon}</span>
+      <span className="flex-1 text-right">{label}</span>
+      {badge > 0 && <span className="min-w-[20px] h-5 px-1.5 bg-rust-600 text-white text-[11px] font-bold rounded-full grid place-items-center">{badge}</span>}
     </button>
   );
 }
@@ -604,6 +655,7 @@ export function App() {
   const [savedOpen, setSavedOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerMode, setComposerMode] = useState('project');
   const [sharing, setSharing] = useState(null);           // post being shared in the composer
@@ -695,6 +747,7 @@ export function App() {
         onOpenSaved={requireAuth(() => setSavedOpen(true))}
         onOpenProfile={handleOpenProfile}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSecurity={() => setSecurityOpen(true)}
         onPickTag={handlePickTag}
         unreadMessages={messagesOpen ? 0 : unreadMessages}
         unreadNotifications={unreadNotifications} />
@@ -737,10 +790,13 @@ export function App() {
                     onCreated={handleCreated} onListingCreated={handleListingCreated} />
       {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
       {settingsOpen && user && <EditProfileModal onClose={() => setSettingsOpen(false)} />}
+      {securityOpen && user && <SecurityModal onClose={() => setSecurityOpen(false)} />}
       <MobileDrawer open={mobileMenu} onClose={() => setMobileMenu(false)} view={view} onView={(v) => navigate(v)}
         onOpenMessages={() => { handleOpenMessages(); setMobileMenu(false); }}
         onOpenNotifications={() => { requireAuth(() => setNotifsOpen(true))(); setMobileMenu(false); }}
-        onOpenSaved={() => { requireAuth(() => setSavedOpen(true))(); setMobileMenu(false); }} />
+        onOpenSaved={() => { requireAuth(() => setSavedOpen(true))(); setMobileMenu(false); }}
+        onOpenProfile={handleOpenProfile} onPickTag={handlePickTag} onSign={handleSign}
+        unreadMessages={unreadMessages} unreadNotifications={unreadNotifications} />
       <MessagesPanel open={messagesOpen} onClose={() => { setMessagesOpen(false); setDmTarget(null); }}
                      initial={dmTarget} onUnreadChange={setUnreadMessages} />
       <NotificationsPanel open={notifsOpen} onClose={() => setNotifsOpen(false)} onUnreadChange={setUnreadNotifications}

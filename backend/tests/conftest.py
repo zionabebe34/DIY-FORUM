@@ -11,7 +11,7 @@ from app import create_app  # noqa: E402
 from seed import apply_schema, connect  # noqa: E402
 
 TEST_DB = os.getenv('DB_NAME', 'handyhub') + '_test'
-TABLES = ['notifications', 'saved_listings', 'saved_posts', 'messages', 'store_reviews', 'stores', 'listings', 'password_resets', 'reports', 'comments', 'post_likes', 'post_tags', 'tags', 'post_images', 'posts', 'follows', 'sessions', 'users']
+TABLES = ['login_challenges', 'totp_recovery_codes', 'notifications', 'saved_listings', 'saved_posts', 'messages', 'store_reviews', 'stores', 'listings', 'password_resets', 'reports', 'comments', 'post_likes', 'post_tags', 'tags', 'post_images', 'posts', 'follows', 'sessions', 'users']
 
 PNG_1PX = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS'
            b'\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00'

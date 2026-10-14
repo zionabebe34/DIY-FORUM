@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import bcrypt
-from flask import current_app, g, jsonify, request
+from flask import current_app, g, jsonify, make_response, request
 
-from db import execute, query
+from db import commit, execute, query
+from utils import private_user
 
 SESSION_COOKIE = 'hh_session'
 SESSION_DAYS = 14
@@ -50,6 +51,15 @@ def set_session_cookie(response, token):
 
 def clear_session_cookie(response):
     response.delete_cookie(SESSION_COOKIE, samesite='Lax')
+
+
+def login_response(user_row, status=200, extra=None):
+    """Start a session: set the cookie and return the user (plus any `extra` fields)."""
+    token = create_session(user_row['id'])
+    commit()
+    response = make_response(jsonify({'user': private_user(user_row), **(extra or {})}), status)
+    set_session_cookie(response, token)
+    return response
 
 
 def current_user():

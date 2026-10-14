@@ -5,22 +5,15 @@ from html import escape
 from flask import Blueprint, current_app, jsonify, make_response, request
 from mysql.connector import errors as mysql_errors
 
-from auth import (SESSION_COOKIE, check_password, clear_session_cookie, create_session,
-                  current_user, delete_session, hash_password, set_session_cookie, token_hash)
+from auth import (SESSION_COOKIE, check_password, clear_session_cookie, current_user, delete_session,
+                  hash_password, login_response, token_hash)
 from db import commit, execute, query
 from mailer import send_email
 from notifications import notify_system
+from routes.twofa_routes import start_challenge
 from utils import EMAIL_RE, USERNAME_RE, private_user
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-
-
-def _login_response(user_row, status=200):
-    token = create_session(user_row['id'])
-    commit()
-    response = make_response(jsonify({'user': private_user(user_row)}), status)
-    set_session_cookie(response, token)
-    return response
 
 
 @bp.post('/signup')
@@ -56,7 +49,7 @@ def signup():
     notify_system(user_id, f'ברוכים הבאים ל-HandyHub, {name}! שתפו את הפרויקט הראשון שלכם 🛠️')
 
     user = query('SELECT * FROM users WHERE id = %s', (user_id,), one=True)
-    return _login_response(user, 201)
+    return login_response(user, 201)
 
 
 @bp.post('/login')
@@ -73,7 +66,10 @@ def login():
         return jsonify({'error': 'פרטי התחברות שגויים'}), 401
     if user['is_banned']:
         return jsonify({'error': 'החשבון נחסם על ידי צוות הניהול'}), 403
-    return _login_response(user)
+    if user['totp_enabled']:
+        # Right password, but no session until the authenticator code (step 2: /login/2fa)
+        return jsonify({'two_factor_required': True, 'challenge': start_challenge(user)})
+    return login_response(user)
 
 
 @bp.post('/logout')

@@ -63,6 +63,7 @@ export function toPerson(u) {
     isStaff: u.role === 'moderator' || u.role === 'admin',
     isBanned: !!u.is_banned,
     email: u.email,
+    twoFactor: !!u.two_factor,
     followersCount: u.followers_count,
     followingCount: u.following_count,
     postsCount: u.posts_count,
@@ -151,7 +152,17 @@ const page = (mapper) => (data) => ({ items: data.items.map(mapper), nextCursor:
 // ── Endpoints ───────────────────────────────────────────────────────────────
 export const api = {
   me: () => request('/api/auth/me').then(d => d.user),
-  login: (login, password) => request('/api/auth/login', { method: 'POST', json: { login, password } }).then(d => d.user),
+  // → { user } or, for an account with 2FA, { two_factor_required, challenge }
+  login: (login, password) => request('/api/auth/login', { method: 'POST', json: { login, password } }),
+  loginWithCode: (challenge, code) => request('/api/auth/login/2fa', { method: 'POST', json: { challenge, code } }),
+  twoFactor: {
+    status: () => request('/api/auth/2fa'),
+    setup: () => request('/api/auth/2fa/setup', { method: 'POST' }),
+    enable: (code) => request('/api/auth/2fa/enable', { method: 'POST', json: { code } }),
+    disable: (password, code) => request('/api/auth/2fa/disable', { method: 'POST', json: { password, code } }),
+    newRecoveryCodes: (password, code) =>
+      request('/api/auth/2fa/recovery-codes', { method: 'POST', json: { password, code } }),
+  },
   signup: (fields) => request('/api/auth/signup', { method: 'POST', json: fields }).then(d => d.user),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   forgotPassword: (email) => request('/api/auth/forgot', { method: 'POST', json: { email } }),

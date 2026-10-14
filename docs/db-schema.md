@@ -31,6 +31,8 @@ erDiagram
     USERS ||--o{ SAVED_LISTINGS : "bookmarks"
     LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
     USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ TOTP_RECOVERY_CODES : "backup codes"
+    USERS ||--o{ LOGIN_CHALLENGES : "2FA login step"
     USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
     POSTS |o--o{ NOTIFICATIONS : "about"
     POSTS |o--o{ POSTS : "shared in"
@@ -54,6 +56,10 @@ erDiagram
         bool is_banned
         varchar ban_reason
         datetime banned_at
+        bool totp_enabled "two-factor login on"
+        varchar totp_secret "TOTP secret (base32)"
+        varchar totp_pending "secret during setup"
+        bigint totp_last_step "replay protection"
         datetime created_at
     }
     SESSIONS {
@@ -175,6 +181,20 @@ erDiagram
         datetime created_at
         datetime resolved_at
     }
+    TOTP_RECOVERY_CODES {
+        int id PK
+        int user_id FK
+        char code_hash "SHA-256, single use"
+        datetime used_at
+    }
+    LOGIN_CHALLENGES {
+        int id PK
+        int user_id FK
+        char token_hash UK "SHA-256 of the challenge"
+        tinyint attempts "max 5"
+        datetime created_at
+        datetime expires_at "5 minutes"
+    }
     SAVED_POSTS {
         int user_id PK, FK
         int post_id PK, FK
@@ -223,6 +243,7 @@ All foreign keys use `ON DELETE CASCADE`, so deleting a user removes their sessi
 ## Design notes
 
 - **Passwords** are stored only as bcrypt hashes (`password_hash`).
+- **Two-factor login (TOTP)**: after the right password, an account with 2FA gets a short-lived `login_challenges` token (5 min, 5 attempts) instead of a session; the session is created only after a valid authenticator code (±30 s drift; each code works once via `totp_last_step`) or a single-use backup code (`totp_recovery_codes`, stored as SHA-256). Turning 2FA off or making new backup codes needs the password and a current code; turning it on signs out other browsers.
 - **Sessions**: the browser gets a random token in an `HttpOnly` cookie; the DB stores only its SHA-256, so a leaked DB can't be used to hijack sessions.
 - **Password reset**: the emailed link carries a random token; only its SHA-256 is stored, it expires after 30 minutes, works once, only the newest link is valid, max 3 emails per hour, and a successful reset deletes all of the user's sessions. `/api/auth/forgot` answers identically for unknown emails.
 - **Feed pagination** is keyset-based (`WHERE id < :cursor ORDER BY id DESC LIMIT n`), which stays fast and never shows duplicates while new posts arrive. `idx_author (author_id, id)` serves the per-user feed and the "following" feed.

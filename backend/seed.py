@@ -242,6 +242,10 @@ COLUMN_MIGRATIONS = [
     ('users', 'ban_reason', 'VARCHAR(300) NULL'),
     ('users', 'banned_at', 'DATETIME NULL'),
     ('posts', 'shared_post_id', 'INT NULL'),
+    ('users', 'totp_enabled', 'BOOLEAN NOT NULL DEFAULT FALSE'),
+    ('users', 'totp_secret', 'VARCHAR(64) NULL'),
+    ('users', 'totp_pending', 'VARCHAR(64) NULL'),
+    ('users', 'totp_last_step', 'BIGINT NULL'),
 ]
 
 

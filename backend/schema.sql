@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS users (
   is_banned      BOOLEAN      NOT NULL DEFAULT FALSE,
   ban_reason     VARCHAR(300) NULL,
   banned_at      DATETIME     NULL,
+  totp_enabled   BOOLEAN      NOT NULL DEFAULT FALSE,   -- two-factor login (authenticator app)
+  totp_secret    VARCHAR(64)  NULL,                     -- base32 TOTP secret, set once 2FA is confirmed
+  totp_pending   VARCHAR(64)  NULL,                     -- secret shown during setup, until the first code
+  totp_last_step BIGINT       NULL,                     -- last accepted 30-second step (a code works once)
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -258,4 +262,26 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (actor_id)   REFERENCES users(id)    ON DELETE CASCADE,
   FOREIGN KEY (post_id)    REFERENCES posts(id)    ON DELETE CASCADE,
   FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
+);
+
+-- ── Two-factor login ───────────────────────────────────────────────────────
+-- One-time backup codes (only their SHA-256 is stored), for a lost phone.
+CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT      NOT NULL,
+  code_hash  CHAR(64) NOT NULL,
+  used_at    DATETIME NULL,
+  INDEX idx_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Step 1 of a 2FA login (correct password) → a short-lived challenge; step 2 trades it + a code for a session.
+CREATE TABLE IF NOT EXISTS login_challenges (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT      NOT NULL,
+  token_hash  CHAR(64) NOT NULL UNIQUE,
+  attempts    TINYINT  NOT NULL DEFAULT 0,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at  DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
