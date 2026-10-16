@@ -1,12 +1,19 @@
-"""Sign-up, login, logout, and "who am I"."""
+"""Sign-up, login, logout, Google OAuth 2.0, password reset, and "who am I"."""
+import json
+import re
 import secrets
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 from html import escape
 
-from flask import Blueprint, current_app, jsonify, make_response, request
+import certifi
+from flask import Blueprint, current_app, jsonify, make_response, redirect, request
 from mysql.connector import errors as mysql_errors
 
-from auth import (SESSION_COOKIE, check_password, clear_session_cookie, current_user, delete_session,
-                  hash_password, login_response, token_hash)
+from auth import (SESSION_COOKIE, check_password, clear_session_cookie, create_session, current_user,
+                  delete_session, hash_password, login_response, set_session_cookie, token_hash)
 from db import commit, execute, query
 from mailer import send_email
 from notifications import notify_system
@@ -14,6 +21,8 @@ from routes.twofa_routes import start_challenge
 from utils import EMAIL_RE, USERNAME_RE, private_user
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+OAUTH_STATE_COOKIE = 'hh_oauth_state'
+_SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 
 
 @bp.post('/signup')
@@ -182,3 +191,133 @@ def reset_password():
     execute('DELETE FROM sessions WHERE user_id = %s', (user['id'],))   # log out every device
     commit()
     return jsonify({'ok': True})
+
+
+# ── Google OAuth 2.0 (Login with Google) ────────────────────────────────────
+def _google_redirect_uri():
+    return f"{current_app.config['APP_URL']}/api/auth/google/callback"
+
+
+def _oauth_redirect(params=None):
+    qs = ('?' + urllib.parse.urlencode(params)) if params else ''
+    resp = make_response(redirect(f"{current_app.config['APP_URL']}/{qs}#/"))
+    resp.delete_cookie(OAUTH_STATE_COOKIE, samesite='Lax')
+    return resp
+
+
+def _unique_username(email):
+    base = re.sub(r'[^A-Za-z0-9_.]', '_', email.split('@')[0]).strip('_.')[:22]
+    if len(base) < 3:
+        base = 'maker'
+    candidate = base
+    n = 2
+    while query('SELECT 1 FROM users WHERE username = %s', (candidate,), one=True) is not None:
+        candidate = f'{base}_{n}'
+        n += 1
+    return candidate
+
+
+def _google_fetch_profile(code):
+    """Exchange an authorization code with Google and fetch the verified user profile."""
+    payload = urllib.parse.urlencode({
+        'code': code,
+        'client_id': current_app.config['GOOGLE_CLIENT_ID'],
+        'client_secret': current_app.config['GOOGLE_CLIENT_SECRET'],
+        'redirect_uri': _google_redirect_uri(),
+        'grant_type': 'authorization_code',
+    }).encode('utf-8')
+    try:
+        token_req = urllib.request.Request(
+            'https://oauth2.googleapis.com/token', data=payload,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        with urllib.request.urlopen(token_req, timeout=10, context=_SSL_CTX) as resp:
+            token_data = json.loads(resp.read().decode('utf-8'))
+        access_token = token_data.get('access_token')
+        if not access_token:
+            return None
+        info_req = urllib.request.Request(
+            'https://openidconnect.googleapis.com/v1/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'})
+        with urllib.request.urlopen(info_req, timeout=10, context=_SSL_CTX) as resp:
+            info = json.loads(resp.read().decode('utf-8'))
+    except (urllib.error.URLError, ValueError, KeyError):
+        return None
+    if not isinstance(info, dict) or not info.get('sub') or not info.get('email') or not info.get('email_verified'):
+        return None
+    return info
+
+
+def _google_find_or_create_user(info):
+    sub = str(info['sub']).strip()[:64]
+    email = str(info['email']).strip().lower()
+    name = (str(info.get('name') or '').strip() or email.split('@')[0])[:80]
+    picture = str(info.get('picture') or '').strip()[:500] or None
+
+    user = query('SELECT * FROM users WHERE google_id = %s', (sub,), one=True)
+    if user is not None:
+        return user
+
+    by_email = query('SELECT * FROM users WHERE email = %s', (email,), one=True)
+    if by_email is not None:
+        if by_email['is_agent'] or (by_email.get('google_id') and by_email['google_id'] != sub):
+            return None
+        avatar = by_email['avatar_url'] or picture
+        execute('UPDATE users SET google_id = %s, avatar_url = %s WHERE id = %s', (sub, avatar, by_email['id']))
+        commit()
+        return query('SELECT * FROM users WHERE id = %s', (by_email['id'],), one=True)
+
+    username = _unique_username(email)
+    user_id, _ = execute(
+        """INSERT INTO users (username, email, password_hash, name, avatar_url, google_id, skills)
+           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+        (username, email, hash_password(secrets.token_urlsafe(24)), name, picture, sub, '[]'))
+    notify_system(user_id, f'ברוכים הבאים ל-HandyHub, {name}! שתפו את הפרויקט הראשון שלכם 🛠️')
+    commit()
+    return query('SELECT * FROM users WHERE id = %s', (user_id,), one=True)
+
+
+@bp.get('/google')
+def google_start():
+    client_id = current_app.config['GOOGLE_CLIENT_ID']
+    if not client_id or not current_app.config['GOOGLE_CLIENT_SECRET']:
+        return _oauth_redirect({'oauth_error': 'not_configured'})
+    state = secrets.token_urlsafe(24)
+    params = urllib.parse.urlencode({
+        'client_id': client_id,
+        'redirect_uri': _google_redirect_uri(),
+        'response_type': 'code',
+        'scope': 'openid email profile',
+        'state': state,
+        'prompt': 'select_account',
+    })
+    resp = make_response(redirect(f'https://accounts.google.com/o/oauth2/v2/auth?{params}'))
+    resp.set_cookie(OAUTH_STATE_COOKIE, token_hash(state), max_age=600, httponly=True,
+                    samesite='Lax', secure=current_app.config['COOKIE_SECURE'])
+    return resp
+
+
+@bp.get('/google/callback')
+def google_callback():
+    if request.args.get('error'):
+        return _oauth_redirect({'oauth_error': 'cancelled'})
+    state = request.args.get('state') or ''
+    expected = request.cookies.get(OAUTH_STATE_COOKIE) or ''
+    code = request.args.get('code') or ''
+    if not state or not expected or not code or token_hash(state) != expected:
+        return _oauth_redirect({'oauth_error': 'failed'})
+    info = _google_fetch_profile(code)
+    if info is None:
+        return _oauth_redirect({'oauth_error': 'failed'})
+    user = _google_find_or_create_user(info)
+    if user is None:
+        return _oauth_redirect({'oauth_error': 'failed'})
+    if user['is_banned']:
+        return _oauth_redirect({'oauth_error': 'banned'})
+    if user['totp_enabled']:
+        return _oauth_redirect({'twofa': start_challenge(user)})
+    token = create_session(user['id'])
+    commit()
+    resp = _oauth_redirect()
+    set_session_cookie(resp, token)
+    return resp
+

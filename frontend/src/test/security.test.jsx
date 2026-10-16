@@ -138,4 +138,17 @@ describe('two-factor login', () => {
     await user.click(await screen.findByRole('button', { name: 'חזרה להתחברות' }));
     expect(screen.getByText('טוב שחזרת')).toBeInTheDocument();
   });
+
+  it('handles Google OAuth callback errors and 2FA challenge redirect', async () => {
+    window.history.replaceState(null, '', '/?oauth_error=cancelled#/');
+    const { user, unmount } = await renderApp();
+    expect(await screen.findByRole('alert')).toHaveTextContent('ההתחברות עם Google בוטלה');
+    expect(screen.getByRole('link', { name: /המשך עם Google/ })).toHaveAttribute('href', '/api/auth/google');
+    await user.click(screen.getByRole('button', { name: 'סגור' }));
+    unmount();
+
+    window.history.replaceState(null, '', '/?twofa=ch-2#/');
+    await renderApp({ setup: withTwoFactor('bob') });
+    expect(await screen.findByText('אימות דו-שלבי')).toBeInTheDocument();
+  });
 });

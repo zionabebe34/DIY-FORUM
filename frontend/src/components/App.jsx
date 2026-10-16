@@ -426,14 +426,21 @@ function FeedTab({ active, onClick, icon, label }) {
   );
 }
 
+const OAUTH_ERRORS = {
+  not_configured: 'התחברות עם Google עדיין לא הוגדרה בשרת (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).',
+  cancelled: 'ההתחברות עם Google בוטלה.',
+  banned: 'החשבון נחסם על ידי צוות הניהול.',
+  failed: 'ההתחברות עם Google נכשלה — נסו שוב.',
+};
+
 // ====================== AUTH MODAL ==========================================
-function AuthModal({ initialMode = 'signup', onClose }) {
+function AuthModal({ initialMode = 'signup', initialChallenge = null, initialError = '', onClose }) {
   const { login, loginWithCode, signup } = useAuth();
-  const [mode, setMode] = useState(initialMode);      // signup | login | forgot | twofa
+  const [mode, setMode] = useState(initialChallenge ? 'twofa' : initialMode);      // signup | login | forgot | twofa
   const [fields, setFields] = useState({ name: '', username: '', email: '', login: '', password: '', code: '' });
-  const [challenge, setChallenge] = useState(null);   // 2FA: step 1 passed, waiting for the code
+  const [challenge, setChallenge] = useState(initialChallenge);   // 2FA: step 1 passed, waiting for the code
   const [useBackup, setUseBackup] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
   const [sentMessage, setSentMessage] = useState('');   // forgot-password confirmation
   const set = (k) => (e) => setFields(f => ({ ...f, [k]: e.target.value }));
@@ -534,26 +541,38 @@ function AuthModal({ initialMode = 'signup', onClose }) {
             )}
           </div>
         ) : (
-        <div className="space-y-2 mt-5">
-          {mode === 'signup' ? (
-            <>
-              <Field label="שם מלא" placeholder="דניאל בן-דוד" value={fields.name} onChange={set('name')} required maxLength={80} autoComplete="name" />
-              <Field label="שם משתמש" placeholder="daniel_p" value={fields.username} onChange={set('username')} required dir="ltr"
-                     pattern="[A-Za-z0-9_.]{3,30}" title="3–30 תווים: אותיות באנגלית, ספרות, _ או ." autoComplete="username" />
-              <Field label="אימייל" placeholder="you@workshop.co.il" type="email" value={fields.email} onChange={set('email')} required dir="ltr" autoComplete="email" />
-            </>
-          ) : (
-            <Field label="אימייל או שם משתמש" placeholder="you@workshop.co.il" value={fields.login} onChange={set('login')} required dir="ltr" autoComplete="username" />
-          )}
-          <Field label="סיסמה" placeholder="••••••••" type="password" value={fields.password} onChange={set('password')} required
-                 minLength={mode === 'signup' ? 8 : undefined} dir="ltr" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
-          {mode === 'signup' && <p className="text-[11px] text-slate-500">לפחות 8 תווים.</p>}
-          {mode === 'login' && (
-            <button type="button" onClick={() => goTo('forgot')} className="text-xs font-semibold text-rust-700 hover:underline">
-              שכחתי סיסמה
-            </button>
-          )}
-        </div>
+        <>
+          <a href="/api/auth/google"
+             className="w-full mt-5 flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg py-2.5 text-sm font-bold text-slate-700 transition shadow-sm">
+            <I.Google size={18} />
+            <span>המשך עם Google</span>
+          </a>
+          <div className="flex items-center gap-3 my-4 text-xs text-slate-400">
+            <div className="h-px bg-slate-200 flex-1" />
+            <span>או עם אימייל</span>
+            <div className="h-px bg-slate-200 flex-1" />
+          </div>
+          <div className="space-y-2">
+            {mode === 'signup' ? (
+              <>
+                <Field label="שם מלא" placeholder="דניאל בן-דוד" value={fields.name} onChange={set('name')} required maxLength={80} autoComplete="name" />
+                <Field label="שם משתמש" placeholder="daniel_p" value={fields.username} onChange={set('username')} required dir="ltr"
+                       pattern="[A-Za-z0-9_.]{3,30}" title="3–30 תווים: אותיות באנגלית, ספרות, _ או ." autoComplete="username" />
+                <Field label="אימייל" placeholder="you@workshop.co.il" type="email" value={fields.email} onChange={set('email')} required dir="ltr" autoComplete="email" />
+              </>
+            ) : (
+              <Field label="אימייל או שם משתמש" placeholder="you@workshop.co.il" value={fields.login} onChange={set('login')} required dir="ltr" autoComplete="username" />
+            )}
+            <Field label="סיסמה" placeholder="••••••••" type="password" value={fields.password} onChange={set('password')} required
+                   minLength={mode === 'signup' ? 8 : undefined} dir="ltr" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
+            {mode === 'signup' && <p className="text-[11px] text-slate-500">לפחות 8 תווים.</p>}
+            {mode === 'login' && (
+              <button type="button" onClick={() => goTo('forgot')} className="text-xs font-semibold text-rust-700 hover:underline">
+                שכחתי סיסמה
+              </button>
+            )}
+          </div>
+        </>
         )}
         {error && <div role="alert" className="mt-4 rounded-lg bg-rust-50 border border-rust-200 text-rust-800 text-sm px-3 py-2">{error}</div>}
         {!(mode === 'forgot' && sentMessage) && (
@@ -645,7 +664,8 @@ export function App() {
   const { user, ready } = useAuth();
   const [route, navigate] = useHashRoute();
   const { view, param } = route;
-  const [authMode, setAuthMode] = useState(null);      // null | 'login' | 'signup'
+  const [authMode, setAuthMode] = useState(null);      // null | 'login' | 'signup' | 'twofa'
+  const [oauthState, setOauthState] = useState({ challenge: null, error: '' });
   const [mobileMenu, setMobileMenu] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [dmTarget, setDmTarget] = useState(null);       // { username, draft?, listing? } to open a chat with
@@ -660,6 +680,18 @@ export function App() {
   const [composerMode, setComposerMode] = useState('project');
   const [sharing, setSharing] = useState(null);           // post being shared in the composer
   const [createdPosts, setCreatedPosts] = useState([]);  // published this session
+
+  // Google OAuth callback lands with ?twofa=<challenge> or ?oauth_error=<code>
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('oauth_error');
+    const twofa = params.get('twofa');
+    if (err || twofa) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+      setOauthState({ challenge: twofa || null, error: err ? (OAUTH_ERRORS[err] || OAUTH_ERRORS.failed) : '' });
+      setAuthMode(twofa ? 'twofa' : 'login');
+    }
+  }, []);
 
   // Buttons deep inside posts (♥, comment) ask for the login dialog via an event
   useEffect(() => {
@@ -788,7 +820,10 @@ export function App() {
 
       <PostComposer open={composerOpen} mode={composerMode} sharedPost={sharing} onClose={() => setComposerOpen(false)}
                     onCreated={handleCreated} onListingCreated={handleListingCreated} />
-      {authMode && <AuthModal initialMode={authMode} onClose={() => setAuthMode(null)} />}
+      {authMode && (
+        <AuthModal initialMode={authMode} initialChallenge={oauthState.challenge} initialError={oauthState.error}
+                   onClose={() => { setAuthMode(null); setOauthState({ challenge: null, error: '' }); }} />
+      )}
       {settingsOpen && user && <EditProfileModal onClose={() => setSettingsOpen(false)} />}
       {securityOpen && user && <SecurityModal onClose={() => setSecurityOpen(false)} />}
       <MobileDrawer open={mobileMenu} onClose={() => setMobileMenu(false)} view={view} onView={(v) => navigate(v)}

@@ -74,6 +74,7 @@ erDiagram
         varchar totp_secret "TOTP secret (base32)"
         varchar totp_pending "secret during setup"
         bigint totp_last_step "replay protection"
+        varchar google_id UK "Google OAuth subject (sub)"
         datetime created_at
     }
     SESSIONS {

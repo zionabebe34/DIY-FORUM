@@ -246,6 +246,7 @@ COLUMN_MIGRATIONS = [
     ('users', 'totp_secret', 'VARCHAR(64) NULL'),
     ('users', 'totp_pending', 'VARCHAR(64) NULL'),
     ('users', 'totp_last_step', 'BIGINT NULL'),
+    ('users', 'google_id', 'VARCHAR(64) NULL UNIQUE'),
 ]
 
 

@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   totp_secret    VARCHAR(64)  NULL,                     -- base32 TOTP secret, set once 2FA is confirmed
   totp_pending   VARCHAR(64)  NULL,                     -- secret shown during setup, until the first code
   totp_last_step BIGINT       NULL,                     -- last accepted 30-second step (a code works once)
+  google_id      VARCHAR(64)  NULL UNIQUE,              -- Google OAuth subject ('sub')
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
