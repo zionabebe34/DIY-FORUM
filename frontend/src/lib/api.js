@@ -4,9 +4,10 @@
 import { announcePostsChanged } from './intents.js';
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, data = null) {
     super(message);
     this.status = status;
+    this.data = data;     // the whole JSON body (e.g. `moderation` on a 409 / 422 comment)
   }
 }
 
@@ -26,7 +27,7 @@ async function request(path, { method = 'GET', json, form } = {}) {
   }
   let data = null;
   try { data = await res.json(); } catch { /* empty body */ }
-  if (!res.ok) throw new ApiError(data?.error || 'שגיאת שרת', res.status);
+  if (!res.ok) throw new ApiError(data?.error || 'שגיאת שרת', res.status, data);
   return data;
 }
 
@@ -181,8 +182,9 @@ export const api = {
   like: (id) => request(`/api/posts/${id}/like`, { method: 'POST' }),
   unlike: (id) => request(`/api/posts/${id}/like`, { method: 'DELETE' }),
   comments: (id) => request(`/api/posts/${id}/comments`).then(d => d.items.map(toComment)),
-  addComment: (id, body, parentId) =>
-    request(`/api/posts/${id}/comments`, { method: 'POST', json: { body, parent_id: parentId ?? null } })
+  // confirm = publish even though the toxicity check warned (→ a moderator gets an automatic report)
+  addComment: (id, body, parentId, confirm = false) =>
+    request(`/api/posts/${id}/comments`, { method: 'POST', json: { body, parent_id: parentId ?? null, confirm } })
       .then(d => toComment(d.comment)),
   deleteComment: (commentId) => request(`/api/comments/${commentId}`, { method: 'DELETE' }),
   post: (id) => request(`/api/posts/${id}`).then(d => toPost(d.post)),

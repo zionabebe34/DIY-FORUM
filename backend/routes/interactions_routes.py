@@ -5,6 +5,7 @@ from mysql.connector import errors as mysql_errors
 from auth import current_user, is_moderator, login_required
 from moderation import resolve_reports
 from notifications import notify, notify_mentions, unnotify
+import toxicity
 from db import commit, execute, query
 from utils import iso
 
@@ -112,6 +113,10 @@ def add_comment(post_id):
         parent_author = parent['author_id']
 
     me = current_user()['id']
+    # Toxicity check before publishing (part 2 e.iii): block → 422; warn → 409 until the author confirms
+    blocked, verdict = toxicity.guard(body, bool(data.get('confirm')), me)
+    if blocked:
+        return blocked
     comment_id, _ = execute('INSERT INTO comments (post_id, author_id, parent_id, body) VALUES (%s, %s, %s, %s)',
                             (post_id, me, parent_id, body))
     # The person replied to hears about a reply; the post's author about any other comment
@@ -120,6 +125,7 @@ def add_comment(post_id):
     if post_author != parent_author:
         notify(post_author, me, 'comment', post_id, comment_id, body)
     notify_mentions(body, me, post_id, comment_id, skip={me, post_author, parent_author})
+    toxicity.flag_if_needed(verdict, 'comment', comment_id)   # published after a warning → a moderator takes a look
     commit()
     row = query(f'{_COMMENT_SELECT} WHERE c.id = %s', (comment_id,), one=True)
     return jsonify({'comment': _serialize_comment(row)}), 201

@@ -16,8 +16,8 @@ Talk to the user in Hebrew; they work section by section and run `git commit` th
 - Run everything: `./start.sh`. Mail: `MAIL_BACKEND=smtp` with Gmail app password in `backend/.env` (works); `console` prints emails.
 
 ## Tests (keep ≥ 85% — course requirement)
-- Backend: `cd backend && .venv/bin/python -m pytest` → 100 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
-- Frontend: `cd frontend && npm run coverage` → 110 tests, 98%. Runs the whole app against an in-memory fake API
+- Backend: `cd backend && .venv/bin/python -m pytest` → 102 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
+- Frontend: `cd frontend && npm run coverage` → 113 tests, 98%. Runs the whole app against an in-memory fake API
   (`src/test/fakeServer.js` — keep it in sync when adding endpoints; `server.fetch.failNext = 'METHOD /path'` simulates one error).
 
 ## Status
@@ -42,9 +42,13 @@ Remaining (user's order, ask before starting):
   JSON answer → validate → `ai_calls` log; any failure → None). DONE: d. 10 agents (`agent_personas.py`, `agents.py`
   tick/run, started by start.sh → backend/agents.log; act via the HTTP API as themselves; quotas per agent/day 3 posts,
   5 comments, 3 DM replies; quiet 00–07 Israel; agent-only threads stop at 3; output guards + fail-closed toxicity).
-  TODO: e.iii toxicity for people (`toxicity.guard`/`flag_if_needed` exist; wire into posts/comments + frontend 409
-  "edit / publish anyway" + eval set; decide fail-open), c. writing assist (auto-correct, suggested post, suggested
-  comments). Old direct-Bedrock attempt is in `git stash` "ai-wip" (can be dropped).
+  DONE: e.iii toxicity on **comments only** (user's choice; posts aren't checked), fail-open for people (fail-closed
+  for agents): local rules → model category → level policy in code (spam/harassment/other ≤ warn; hate/violence/
+  self_harm/sexual = block) because the model's level drifts. 409 warn → CommentBox "edit / publish anyway"
+  (confirm=true → automatic report); 422 block. Eval: `backend/evals/run_toxicity_eval.py` on 20 labeled cases
+  (results in evals/results/: v1 80% → v3 90% accuracy, harmful caught 100%, false alarms 20% — both are warn).
+  TODO: c. writing assist (auto-correct, suggested post, suggested comments). Old direct-Bedrock attempt is in
+  `git stash` "ai-wip" (obsolete, can be dropped).
 - Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — after the AI.
 
 ## Gotchas

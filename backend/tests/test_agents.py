@@ -153,6 +153,17 @@ def test_toxicity_check(app, fake_ai):
         assert toxicity.check('מספר')['source'] == 'none'
 
 
+def test_level_follows_the_category():
+    v = toxicity._validate
+    assert v({'level': 'block', 'category': 'spam', 'reason': 'x'})['level'] == 'warn'        # spam never blocks
+    assert v({'level': 'block', 'category': 'harassment', 'reason': 'x'})['level'] == 'warn'
+    assert v({'level': 'warn', 'category': 'violence', 'reason': 'x'})['level'] == 'block'    # threats always block
+    assert v({'level': 'warn', 'category': 'self_harm', 'reason': 'x'})['level'] == 'block'
+    assert v({'level': 'ok', 'category': 'violence', 'reason': 'x'}) == {'level': 'ok', 'category': 'none', 'reason': ''}
+    assert v({'level': 'warn', 'category': 'none', 'reason': 'x'})['level'] == 'ok'
+    assert toxicity.check('עם עבודה כזאת עדיף שתפגע בעצמך')['source'] == 'rules'
+
+
 def test_toxicity_guard_and_flag(app, fake_ai, make_user):
     alice = make_user('alice')
     cid = alice.post('/api/posts', data={'body': 'x'}, content_type='multipart/form-data').get_json()['post']['id']
@@ -291,9 +302,9 @@ def test_dm_replies(app, fake_ai, agent_world, make_user):
     assert 'dm: skipped' in run(app, agents.reply_to_dm, a['benchbot'])
     other.post('/api/messages/with/benchbot', json={'body': 'ושוב'})
     del fake_ai.answers['private message']
-    fake_ai.answers['content moderator'] = '{"level": "block", "category": "other", "reason": "x"}'
+    fake_ai.answers['content moderator'] = '{"level": "block", "category": "hate", "reason": "x"}'
     toxicity._cache.clear()      # the same answer was already judged "ok" earlier
-    assert 'toxicity: block' in run(app, agents.reply_to_dm, a['benchbot'])
+    assert 'toxicity: block/hate' in run(app, agents.reply_to_dm, a['benchbot'])
     app.config['AGENT_MAX_DMS'] = 1
     other.post('/api/messages/with/benchbot', json={'body': 'עוד'})
     assert run(app, agents.reply_to_dm, a['benchbot']) is None                  # quota (1 done today)
@@ -348,3 +359,39 @@ def test_cli_tick(app, fake_ai, monkeypatch, capsys):
     monkeypatch.setattr(app_module, 'create_app', lambda: app)
     agents.main(['tick', '--force'])
     assert '[agents' in capsys.readouterr().out
+
+
+# ── Toxicity on people's comments (part 2 e.iii) ────────────────────────────
+def test_comment_toxicity_flow(app, fake_ai, make_user):
+    alice = make_user('alice')
+    bob = make_user('bob')
+    pid = alice.post('/api/posts', data={'body': 'מדף חדש'}, content_type='multipart/form-data').get_json()['post']['id']
+    comment = lambda body, **extra: bob.post(f'/api/posts/{pid}/comments', json={'body': body, **extra})
+
+    assert comment('נראה מעולה!').status_code == 201
+
+    r = comment('kys')                                   # local rule → blocked, nothing saved
+    assert r.status_code == 422 and r.get_json()['moderation']['level'] == 'block'
+
+    fake_ai.answers['אידיוט'] = '{"level": "warn", "category": "harassment", "reason": "נסו לנסח בלי עלבונות"}'
+    r = comment('איזה אידיוט בנה את זה')
+    assert r.status_code == 409
+    assert r.get_json() == {'error': 'נסו לנסח בלי עלבונות',
+                            'moderation': {'level': 'warn', 'category': 'harassment', 'reason': 'נסו לנסח בלי עלבונות'}}
+    r = comment('איזה אידיוט בנה את זה', confirm=True)   # the author insists → published + automatic report
+    assert r.status_code == 201
+    reports = rows(app, 'SELECT reporter_id, target_type, target_id, reason, details FROM reports')
+    assert reports == [{'reporter_id': None, 'target_type': 'comment', 'target_id': r.get_json()['comment']['id'],
+                        'reason': 'harassment', 'details': 'סינון אוטומטי: נסו לנסח בלי עלבונות'}]
+    assert [c['body'] for c in alice.get(f'/api/posts/{pid}/comments').get_json()['items']] == \
+        ['נראה מעולה!', 'איזה אידיוט בנה את זה']
+
+    fake_ai.answers['מכוער'] = '{"level": "block", "category": "hate", "reason": "התוכן הזה פוגע בקבוצה"}'
+    assert comment('משהו מכוער').status_code == 422
+
+    # the AI service is down → the comment is published anyway (fail-open), no report
+    fake_ai.answers['שירות'] = ai.AIUnavailable('down')
+    assert comment('השירות נפל?').status_code == 201
+    app.config['AI_PROVIDER'] = 'off'
+    assert comment('ובלי AI בכלל').status_code == 201
+    assert len(rows(app, 'SELECT id FROM reports')) == 1

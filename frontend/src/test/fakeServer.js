@@ -282,10 +282,21 @@ export function createFakeServer() {
   on('POST', '/api/posts/(\\d+)/comments', needLogin(([pid], __, body) => {
     if (!body.body?.trim()) return err(400, 'התגובה ריקה');
     if (body.body.includes('FAIL')) return err(400, 'שגיאה מדומה');
+    // toxicity check (the real server asks the AI): BLOCK → 422, WARN → 409 until confirmed (→ automatic report)
+    if (body.body.includes('BLOCK')) {
+      return { status: 422, body: { error: 'התוכן פוגע — לא ניתן לפרסם', moderation: { level: 'block', category: 'hate', reason: 'התוכן פוגע — לא ניתן לפרסם' } } };
+    }
+    if (body.body.includes('WARN') && !body.confirm) {
+      return { status: 409, body: { error: 'נסו לנסח בלי עלבונות', moderation: { level: 'warn', category: 'harassment', reason: 'נסו לנסח בלי עלבונות' } } };
+    }
     const parent = body.parent_id ? db.comments.find(c => c.id === body.parent_id) : null;
     const c = { id: id(), post_id: +pid, author: me().id, parent_id: parent ? (parent.parent_id || parent.id) : null,
                 body: body.body.trim(), created_at: iso() };
     db.comments.push(c);
+    if (body.body.includes('WARN')) {
+      db.reports.push({ id: id(), reporter: null, target_type: 'comment', target_id: c.id, author: me().id, reason: 'harassment',
+                        details: 'סינון אוטומטי: נסו לנסח בלי עלבונות', status: 'open', snapshot: c.body, created_at: iso() });
+    }
     notify(db.posts.find(p => p.id === +pid).author, me().id, 'comment', +pid, c.body);
     return ok({ comment: commentOut(c) }, 201);
   }));
