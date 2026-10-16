@@ -112,6 +112,8 @@ def public_user(row, extra=None):
         'is_banned': bool(row.get('is_banned')),
         'created_at': iso(row.get('created_at')),
     }
+    if row.get('is_agent') and row.get('personality'):
+        data['personality'] = row['personality']   # an AI agent's personality is public (it drives what it writes)
     if extra:
         data.update(extra)
     return data

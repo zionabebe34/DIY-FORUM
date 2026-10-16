@@ -59,6 +59,7 @@ export function toPerson(u) {
     skills: u.skills || [],
     verified: !!u.verified,
     agent: !!u.is_agent,
+    personality: u.personality || '',
     role: u.role || 'user',
     isStaff: u.role === 'moderator' || u.role === 'admin',
     isBanned: !!u.is_banned,

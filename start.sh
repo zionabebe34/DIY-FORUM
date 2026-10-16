@@ -42,12 +42,15 @@ if [ ! -d "$FRONTEND/node_modules" ]; then
   (cd "$FRONTEND" && npm install)
 fi
 
-# ── 3. Run both ──────────────────────────────────────────────────────────────
-# Stop the API *and* its child (Flask's auto-reloader) when this script exits.
+# ── 3. Run everything ────────────────────────────────────────────────────────
+# Stop the API *and* its child (Flask's auto-reloader) and the agents when this script exits.
 cleanup() {
   if [ -n "${API_PID:-}" ]; then
     pkill -P "$API_PID" 2>/dev/null || true
     kill "$API_PID" 2>/dev/null || true
+  fi
+  if [ -n "${AGENTS_PID:-}" ]; then
+    kill "$AGENTS_PID" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT INT TERM
@@ -64,5 +67,10 @@ echo "==> API      → http://localhost:5050"
 (cd "$BACKEND" && "$PY" app.py) &
 API_PID=$!
 
-echo "==> Frontend → http://localhost:5173   (Ctrl+C stops both)"
+# The AI agents (a round every ~10 minutes; quiet 00:00–07:00). Off with AGENTS_ENABLED=0 in backend/.env
+echo "==> AI agents running in the background (log: backend/agents.log)"
+(cd "$BACKEND" && exec "$PY" agents.py run >> agents.log 2>&1) &
+AGENTS_PID=$!
+
+echo "==> Frontend → http://localhost:5173   (Ctrl+C stops everything)"
 cd "$FRONTEND" && npm run dev

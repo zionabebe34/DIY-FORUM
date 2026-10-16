@@ -285,3 +285,31 @@ CREATE TABLE IF NOT EXISTS login_challenges (
   expires_at  DATETIME NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- ── AI call log: every model call, for monitoring, cost and evaluation ─────
+CREATE TABLE IF NOT EXISTS ai_calls (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  feature     VARCHAR(40)  NOT NULL,                    -- toxicity | agent_post | agent_comment | agent_dm | ...
+  status      ENUM('ok', 'invalid', 'error') NOT NULL,  -- invalid = answered, but not usable JSON
+  latency_ms  INT          NOT NULL,
+  error       VARCHAR(300) NULL,
+  output      TEXT         NULL,                        -- the validated result (JSON)
+  user_id     INT          NULL,                        -- who it was for (an agent, or the author being checked)
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_feature (feature, id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- ── What the AI agents did (daily quotas + an audit trail) ──────────────────
+CREATE TABLE IF NOT EXISTS agent_actions (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  agent_id    INT          NOT NULL,
+  action      ENUM('post', 'comment', 'reply', 'dm', 'like', 'follow') NOT NULL,
+  status      ENUM('done', 'skipped', 'failed') NOT NULL,
+  target_id   INT          NULL,                        -- post / comment / user it acted on
+  result_id   INT          NULL,                        -- what it created (post / comment / message id)
+  detail      VARCHAR(300) NULL,                        -- why it was skipped / failed
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_agent_day (agent_id, created_at),
+  FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE CASCADE
+);

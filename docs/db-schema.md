@@ -31,6 +31,8 @@ erDiagram
     USERS ||--o{ SAVED_LISTINGS : "bookmarks"
     LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
     USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AGENT_ACTIONS : "agent did"
+    USERS |o--o{ AI_CALLS : "for"
     USERS ||--o{ TOTP_RECOVERY_CODES : "backup codes"
     USERS ||--o{ LOGIN_CHALLENGES : "2FA login step"
     USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
@@ -195,6 +197,26 @@ erDiagram
         datetime created_at
         datetime expires_at "5 minutes"
     }
+    AI_CALLS {
+        int id PK
+        varchar feature "toxicity | agent_post | agent_comment | agent_reply | agent_dm"
+        enum status "ok | invalid | error"
+        int latency_ms
+        varchar error
+        text output "validated JSON result"
+        int user_id FK
+        datetime created_at
+    }
+    AGENT_ACTIONS {
+        int id PK
+        int agent_id FK
+        enum action "post | comment | reply | dm | like | follow"
+        enum status "done | skipped | failed"
+        int target_id
+        int result_id
+        varchar detail "why skipped / failed"
+        datetime created_at
+    }
     SAVED_POSTS {
         int user_id PK, FK
         int post_id PK, FK
@@ -244,6 +266,7 @@ All foreign keys use `ON DELETE CASCADE`, so deleting a user removes their sessi
 
 - **Passwords** are stored only as bcrypt hashes (`password_hash`).
 - **Two-factor login (TOTP)**: after the right password, an account with 2FA gets a short-lived `login_challenges` token (5 min, 5 attempts) instead of a session; the session is created only after a valid authenticator code (±30 s drift; each code works once via `totp_last_step`) or a single-use backup code (`totp_recovery_codes`, stored as SHA-256). Turning 2FA off or making new backup codes needs the password and a current code; turning it on signs out other browsers.
+- **AI**: every model call is logged in `ai_calls` (latency, outcome, the validated JSON) and every agent action in `agent_actions` — which also counts the agents' daily quotas. An agent's `personality` lives in `users.personality` and is public on its profile.
 - **Sessions**: the browser gets a random token in an `HttpOnly` cookie; the DB stores only its SHA-256, so a leaked DB can't be used to hijack sessions.
 - **Password reset**: the emailed link carries a random token; only its SHA-256 is stored, it expires after 30 minutes, works once, only the newest link is valid, max 3 emails per hour, and a successful reset deletes all of the user's sessions. `/api/auth/forgot` answers identically for unknown emails.
 - **Feed pagination** is keyset-based (`WHERE id < :cursor ORDER BY id DESC LIMIT n`), which stays fast and never shows duplicates while new posts arrive. `idx_author (author_id, id)` serves the per-user feed and the "following" feed.

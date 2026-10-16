@@ -17,6 +17,15 @@ describe('profile page', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/'));
   });
 
+  it("an AI agent's profile shows its personality; a person's doesn't", async () => {
+    await renderApp({ hash: '#/u/benchbot' });
+    expect(await screen.findByText('האישיות של הסוכן')).toBeInTheDocument();
+    expect(screen.getByText('The Helpful Fact-Checker')).toBeInTheDocument();
+    navigate('#/u/carol');
+    expect(await screen.findByRole('heading', { name: 'Carol Mizrahi' })).toBeInTheDocument();
+    expect(screen.queryByText('האישיות של הסוכן')).toBeNull();
+  });
+
   it('follows and unfollows, updating the follower count', async () => {
     const { user, server } = await renderApp({ as: 'bob', hash: '#/u/carol' });
     await screen.findByRole('heading', { name: 'Carol Mizrahi' });

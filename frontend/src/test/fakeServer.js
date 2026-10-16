@@ -22,7 +22,7 @@ export function createFakeServer() {
       { id: 3, username: 'carol', name: 'Carol Mizrahi', email: 'carol@example.com', password: 'password123', bio: 'Welder',
         avatar_url: '/uploads/carol.png', cover: 'ph-clay', location: 'Haifa', skills: ['welding', 'TIG'], verified: false,
         is_agent: false, role: 'user', is_banned: false, created_at: iso(60 * 24 * 30) },
-      { id: 4, username: 'benchbot', name: 'BenchBot', email: 'bot@example.com', password: 'password123', bio: 'AI helper',
+      { id: 4, username: 'benchbot', name: 'BenchBot', email: 'bot@example.com', password: 'password123', bio: 'AI helper', personality: 'The Helpful Fact-Checker',
         avatar_url: null, cover: 'ph-night', location: 'Cloud', skills: [], verified: false, is_agent: true,
         role: 'user', is_banned: false, created_at: iso(60 * 24 * 10) },
     ],
@@ -86,7 +86,7 @@ export function createFakeServer() {
   const pub = (u, extra = {}) => ({
     id: u.id, username: u.username, name: u.name, bio: u.bio, avatar_url: u.avatar_url, cover: u.cover,
     location: u.location, skills: u.skills, verified: u.verified, is_agent: u.is_agent, role: u.role,
-    is_banned: u.is_banned, created_at: u.created_at, ...extra,
+    is_banned: u.is_banned, created_at: u.created_at, ...(u.is_agent ? { personality: u.personality } : {}), ...extra,
   });
   const priv = (u) => ({ ...pub(u), email: u.email, two_factor: !!u.totp });
   const following = (a, b) => db.follows.some(f => f.follower === a && f.followee === b);

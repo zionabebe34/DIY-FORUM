@@ -16,3 +16,6 @@ frontend/dist/
 htmlcov/
 .pytest_cache/
 .DS_Store
+
+# AI agents log (start.sh)
+backend/agents.log

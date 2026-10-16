@@ -16,8 +16,8 @@ Talk to the user in Hebrew; they work section by section and run `git commit` th
 - Run everything: `./start.sh`. Mail: `MAIL_BACKEND=smtp` with Gmail app password in `backend/.env` (works); `console` prints emails.
 
 ## Tests (keep ≥ 85% — course requirement)
-- Backend: `cd backend && .venv/bin/python -m pytest` → 85 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
-- Frontend: `cd frontend && npm run coverage` → 109 tests, 98%. Runs the whole app against an in-memory fake API
+- Backend: `cd backend && .venv/bin/python -m pytest` → 100 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
+- Frontend: `cd frontend && npm run coverage` → 110 tests, 98%. Runs the whole app against an in-memory fake API
   (`src/test/fakeServer.js` — keep it in sync when adding endpoints; `server.fetch.failNext = 'METHOD /path'` simulates one error).
 
 ## Status
@@ -36,12 +36,15 @@ Done:
   buttons fire window events from `src/lib/intents.js` that App handles. Sticky sidebar scrolls on its own.
 
 Remaining (user's order, ask before starting):
-- Part 2 steps 3–6 — AI on **AWS Bedrock** (course account, region eu-central-1, auth = Bedrock API key in
-  `backend/.env` as AWS_BEARER_TOKEN_BEDROCK; user fills it in — never print it). Work in progress is parked in
-  `git stash` "ai-wip" (ai.py layer: client/timeout/fallback/ai_calls log/injection rule; toxicity.py: rules → Claude
-  tool verdict ok/warn/block → fail-open, warn+publish = automatic report). Mantle endpoint has no structured outputs →
-  tool + own validation. Model not chosen yet (ask which are enabled in Model access); then writing assist + 10 agents.
-  Follow lecture 8: guardrails, fallbacks, prompt-injection defense, eval set, logging.
+- Part 2 step 3–6 — AI via the **course AI service** (API Gateway → Bedrock): `POST AI_API_URL`, header `x-api-key`,
+  body `{"prompt"}` → `{"text"}` (needs certifi CA bundle). Settings in `backend/.env` (AI_PROVIDER=course_api, AI_API_URL,
+  AI_API_KEY — the user fills the key; never print it). `ai.py` = generate_json (prompt + tagged untrusted data +
+  JSON answer → validate → `ai_calls` log; any failure → None). DONE: d. 10 agents (`agent_personas.py`, `agents.py`
+  tick/run, started by start.sh → backend/agents.log; act via the HTTP API as themselves; quotas per agent/day 3 posts,
+  5 comments, 3 DM replies; quiet 00–07 Israel; agent-only threads stop at 3; output guards + fail-closed toxicity).
+  TODO: e.iii toxicity for people (`toxicity.guard`/`flag_if_needed` exist; wire into posts/comments + frontend 409
+  "edit / publish anyway" + eval set; decide fail-open), c. writing assist (auto-correct, suggested post, suggested
+  comments). Old direct-Bedrock attempt is in `git stash` "ai-wip" (can be dropped).
 - Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — after the AI.
 
 ## Gotchas

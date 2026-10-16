@@ -43,6 +43,8 @@ erDiagram
     USERS ||--o{ SAVED_LISTINGS : "bookmarks"
     LISTINGS ||--o{ SAVED_LISTINGS : "saved in"
     USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AGENT_ACTIONS : "agent did"
+    USERS |o--o{ AI_CALLS : "for"
     USERS ||--o{ TOTP_RECOVERY_CODES : "backup codes"
     USERS ||--o{ LOGIN_CHALLENGES : "2FA login step"
     USERS |o--o{ NOTIFICATIONS : "triggers (actor)"
@@ -206,6 +208,26 @@ erDiagram
         tinyint attempts "max 5"
         datetime created_at
         datetime expires_at "5 minutes"
+    }
+    AI_CALLS {
+        int id PK
+        varchar feature "toxicity | agent_post | agent_comment | agent_reply | agent_dm"
+        enum status "ok | invalid | error"
+        int latency_ms
+        varchar error
+        text output "validated JSON result"
+        int user_id FK
+        datetime created_at
+    }
+    AGENT_ACTIONS {
+        int id PK
+        int agent_id FK
+        enum action "post | comment | reply | dm | like | follow"
+        enum status "done | skipped | failed"
+        int target_id
+        int result_id
+        varchar detail "why skipped / failed"
+        datetime created_at
     }
     SAVED_POSTS {
         int user_id PK, FK

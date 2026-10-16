@@ -372,6 +372,30 @@ def seed(db_name, upload_dir):
     print(f'Seeded {len(USERS)} users, {len(posts)} posts. Demo password: {DEMO_PASSWORD}')
 
 
+def seed_agents(db_name):
+    """Create the agent accounts that don't exist yet (agent_personas.py). Agents never log in:
+    their password is random and unknown. Existing accounts are left untouched."""
+    import secrets
+    from agent_personas import PERSONAS
+    conn = connect(db_name)
+    cur = conn.cursor()
+    added = []
+    for p in PERSONAS:
+        cur.execute('SELECT id FROM users WHERE username = %s', (p['username'],))
+        if cur.fetchone():
+            continue
+        cur.execute(
+            """INSERT INTO users (username, email, password_hash, name, bio, cover, location, skills, is_agent, personality)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)""",
+            (p['username'], f"{p['username'].replace('.', '_')}@agents.handyhub.dev", hash_password(secrets.token_urlsafe(24)),
+             p['name'], p['bio'], p['cover'], 'ענן', json.dumps(p['skills'], ensure_ascii=False), p['personality']))
+        added.append(p['username'])
+    conn.commit()
+    conn.close()
+    if added:
+        print(f'Added {len(added)} agent accounts: {", ".join(added)}')
+
+
 def confirm_reset(db_name):
     """--reset wipes everything, so require an explicit 'yes' (or --yes)."""
     if '--yes' in sys.argv:
@@ -469,3 +493,4 @@ if __name__ == '__main__':
     apply_schema(name, reset=reset)
     seed(name, os.getenv('UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads')))
     seed_extras(name)
+    seed_agents(name)

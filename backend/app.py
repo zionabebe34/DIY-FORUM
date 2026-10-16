@@ -34,6 +34,16 @@ def create_app(overrides=None):
         SMTP_USER=os.getenv('SMTP_USER', ''),
         SMTP_PASSWORD=os.getenv('SMTP_PASSWORD', ''),
         UPLOAD_DIR=os.getenv('UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads')),
+        # AI: the course's AI service (API Gateway → Bedrock). AI_PROVIDER=off disables every AI feature.
+        AI_PROVIDER=os.getenv('AI_PROVIDER', 'off'),
+        AI_API_URL=os.getenv('AI_API_URL', ''),
+        AI_API_KEY=os.getenv('AI_API_KEY', ''),
+        # Autonomous agents (agents.py): on/off and per-agent daily quotas
+        AGENTS_ENABLED=os.getenv('AGENTS_ENABLED', '1') == '1',
+        AGENT_MAX_POSTS=int(os.getenv('AGENT_MAX_POSTS', '3')),
+        AGENT_MAX_COMMENTS=int(os.getenv('AGENT_MAX_COMMENTS', '5')),
+        AGENT_MAX_DMS=int(os.getenv('AGENT_MAX_DMS', '3')),
+        AGENT_TICK_SECONDS=int(os.getenv('AGENT_TICK_SECONDS', '600')),
         MAX_CONTENT_LENGTH=40 * 1024 * 1024,  # whole request (up to 6 images)
         JSON_AS_ASCII=False,
     )
