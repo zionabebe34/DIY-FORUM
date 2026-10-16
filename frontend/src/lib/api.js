@@ -247,6 +247,16 @@ export const api = {
   unsaveListing: (id) => request(`/api/listings/${id}/save`, { method: 'DELETE' }),
   saved: () => request('/api/saved').then(d => ({ posts: d.posts.map(toPost), listings: d.listings.map(toListing) })),
 
+  // Writing assistant (AI) — 503 when the assistant isn't available
+  ai: {
+    status: () => request('/api/ai/status').then(d => d.enabled),
+    correct: (html) => request('/api/ai/correct', { method: 'POST', json: { html } }),
+    suggestPost: (topic) => request('/api/ai/suggest-post', { method: 'POST', json: { topic } }).then(d => d.suggestions),
+    suggestComments: (postId, parentId) =>
+      request('/api/ai/suggest-comments', { method: 'POST', json: { post_id: postId, parent_id: parentId ?? null } })
+        .then(d => d.suggestions),
+  },
+
   // Reporting + moderation
   report: (targetType, targetId, reason, details) =>
     request('/api/reports', { method: 'POST', json: { target_type: targetType, target_id: targetId, reason, details } }),

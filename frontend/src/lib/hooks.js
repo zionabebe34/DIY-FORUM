@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from './api.js';
 
 /**
  * Cursor-paginated list ("lazy loading"). `fetchPage({ before })` must resolve
@@ -94,3 +95,17 @@ export function useDebounced(value, ms = 250) {
   }, [value, ms]);
   return v;
 }
+
+/** Is the AI writing assistant configured on the server? (asked once per page load) */
+let aiStatus = null;
+export function useAIEnabled() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (!aiStatus) aiStatus = api.ai.status().catch(() => false);
+    let alive = true;
+    aiStatus.then(v => alive && setEnabled(!!v));
+    return () => { alive = false; };
+  }, []);
+  return enabled;
+}
+export function resetAIStatusForTests() { aiStatus = null; }

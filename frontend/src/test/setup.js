@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { resetAIStatusForTests } from '../lib/hooks.js';
 
 // IntersectionObserver: report every observed element as visible right away,
 // so infinite scroll / count-up animations run in tests.
@@ -32,6 +33,7 @@ window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now() + 5
 
 beforeEach(() => {
   window.location.hash = '';
+  resetAIStatusForTests();   // each test's fake server answers /api/ai/status anew
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   vi.spyOn(window, 'alert').mockImplementation(() => {});
 });

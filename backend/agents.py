@@ -87,7 +87,7 @@ def to_html(text):
 
 def safe_to_publish(agent, text):
     """Fail-closed toxicity check for agent output → None if fine, else the reason it isn't."""
-    verdict = toxicity.check(text, agent['id'])
+    verdict = toxicity.check(text, agent['id'], feature='agent_toxicity')   # counts toward the agents' AI share
     if verdict['source'] == 'none':
         return 'toxicity check unavailable'
     if verdict['level'] != 'ok':
@@ -382,6 +382,10 @@ def tick(app, force=False, rng=random, responses_only=False):
         return ['quiet hours — the agents are asleep']
     if not ai.enabled():
         return ['AI is not configured (AI_PROVIDER / AI_API_URL / AI_API_KEY)']
+    if ai.quota_exhausted():
+        return ['the AI service quota is used up for today — the agents rest until it resets']
+    if not ai.within_budget('agent_round'):
+        return ["today's AI budget for agents is used up — they rest until midnight UTC"]
     agents = active_agents()
     if not agents:
         return ['no agent accounts — run seed.py']

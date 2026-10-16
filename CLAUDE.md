@@ -16,8 +16,8 @@ Talk to the user in Hebrew; they work section by section and run `git commit` th
 - Run everything: `./start.sh`. Mail: `MAIL_BACKEND=smtp` with Gmail app password in `backend/.env` (works); `console` prints emails.
 
 ## Tests (keep ≥ 85% — course requirement)
-- Backend: `cd backend && .venv/bin/python -m pytest` → 102 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
-- Frontend: `cd frontend && npm run coverage` → 113 tests, 98%. Runs the whole app against an in-memory fake API
+- Backend: `cd backend && .venv/bin/python -m pytest` → 109 tests, 99%. Uses a separate `<DB_NAME>_test` database; mail forced to `memory`.
+- Frontend: `cd frontend && npm run coverage` → 120 tests, 98%. Runs the whole app against an in-memory fake API
   (`src/test/fakeServer.js` — keep it in sync when adding endpoints; `server.fetch.failNext = 'METHOD /path'` simulates one error).
 
 ## Status
@@ -47,8 +47,13 @@ Remaining (user's order, ask before starting):
   self_harm/sexual = block) because the model's level drifts. 409 warn → CommentBox "edit / publish anyway"
   (confirm=true → automatic report); 422 block. Eval: `backend/evals/run_toxicity_eval.py` on 20 labeled cases
   (results in evals/results/: v1 80% → v3 90% accuracy, harmful caught 100%, false alarms 20% — both are warn).
-  TODO: c. writing assist (auto-correct, suggested post, suggested comments). Old direct-Bedrock attempt is in
-  `git stash` "ai-wip" (obsolete, can be dropped).
+  DONE: c. writing assist (`routes/assist_routes.py`, UI `components/assist.jsx`): auto-correct = deterministic
+  Hebrew rules (final letters, ס״מ, punctuation spacing — work without AI) + model fix list applied word-by-word in
+  code, filtered (`_good_fix`); suggest-post (3 drafts with [placeholders]); suggest-comments (3, by post/thread).
+  Suggestions pass toxicity (fail-closed); 1 retry; per-user hourly quota. The course key has a DAILY QUOTA
+  (~100 calls, API Gateway LimitExceededException → HTTP 429, resets 00:00 UTC): `AI_DAILY_BUDGET` caps our calls,
+  agents ≤ `AI_AGENT_SHARE` (their calls are logged as `agent_*`). Old direct-Bedrock attempt: `git stash` "ai-wip"
+  (obsolete, can be dropped). AI part of part 2 is complete.
 - Part 2 step 9: deploy to AWS (EC2 + RDS + S3, Docker; course lab also asks for an AMI) — after the AI.
 
 ## Gotchas

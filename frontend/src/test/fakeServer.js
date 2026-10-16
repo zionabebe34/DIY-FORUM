@@ -540,6 +540,29 @@ export function createFakeServer() {
     return ok({ unread: unreadCount() });
   }));
 
+  // writing assistant (AI). db.aiEnabled = false hides it; text containing DOWN → 503 (assistant unavailable)
+  const aiDown = () => err(503, 'העוזר החכם לא זמין כרגע — נסו שוב בעוד רגע.');
+  on('GET', '/api/ai/status', () => ok({ enabled: db.aiEnabled !== false }));
+  on('POST', '/api/ai/correct', needLogin((_, __, body) => {
+    if (body.html.includes('DOWN')) return aiDown();
+    const abbr = /\sסמ(?=\s|<|$)/;     // (\b doesn't work with Hebrew letters in JS)
+    const fixed = body.html.replace('לכולמ', 'לכולם').replace(abbr, ' ס״מ');
+    const changes = [body.html.includes('לכולמ') && 'לכולמ ← לכולם', abbr.test(body.html) && 'סמ ← ס״מ'].filter(Boolean);
+    return ok({ html: fixed, changes, changed: changes.length > 0, ai: !body.html.includes('NOAI') });
+  }));
+  on('POST', '/api/ai/suggest-post', needLogin((_, __, body) => {
+    if ((body.topic || '').includes('DOWN')) return aiDown();
+    return ok({ suggestions: [
+      { body: `סיימתי [שם הפרויקט]${body.topic ? ' — ' + body.topic : ''}! מה דעתכם?`, tags: ['נגרות'] },
+      { body: 'שאלה: איך מתחילים עם [החומר]?', tags: [] },
+      { body: 'טיפ: תמיד לשייף לפני [הגימור].', tags: ['טיפ', 'גימור'] },
+    ] });
+  }));
+  on('POST', '/api/ai/suggest-comments', needLogin((_, __, body) => {
+    if (db.aiDownComments) return aiDown();
+    return ok({ suggestions: [`איזה גימור השתמשת? (${body.parent_id ? 'reply' : 'post'} ${body.post_id})`, 'נראה מעולה!', 'טיפ: לשייף לפני השמן'] });
+  }));
+
   // stores
   const storeOut = (st) => {
     const rs = db.reviews.filter(r => r.store_id === st.id);

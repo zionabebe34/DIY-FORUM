@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { api } from '../lib/api.js';
 import { CATEGORY_OPTIONS } from './market.jsx';
 import { PostCards } from './posts.jsx';
+import { ComposerAssist, textToHtml } from './assist.jsx';
 // Full post composer (Hebrew) — opens as a modal-style sheet
 const { useState: useStateC, useRef: useRefC, useEffect: useEffectC } = React;
 
@@ -20,6 +21,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
   const [submitting, setSubmitting] = useStateC(false);
   const [error, setError] = useStateC('');
   const [openCount, setOpenCount] = useStateC(0);  // bumps to reset the editor
+  const [editorContent, setEditorContent] = useStateC({ html: '', key: 0 });   // set by the writing assistant
   const [kind, setKind] = useStateC(mode);   // 'project' | 'tutorial' | 'tool'
   const [text, setText] = useStateC('');
   const [tagInput, setTagInput] = useStateC('');
@@ -348,6 +350,7 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
               <RichEditor
                 key={kind}
                 resetKey={openCount}
+                content={editorContent.html} contentKey={editorContent.key}
                 minHeight={kind === 'tutorial' ? '3.5rem' : '7rem'}
                 placeholder={sharedPost ? 'מה דעתך? הוסיפו כמה מילים על הפוסט (לא חובה)…'
                              : kind === 'project' ? 'מה עשית היום? ספר על התהליך — מה הלך חלק, איפה התקעת…' : 'בקיצור — מה ילמדו פה?'}
@@ -355,6 +358,15 @@ function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'proj
             )}
 
             {/* sharing a share quotes the original (the server does the same) */}
+            {kind !== 'tool' && (
+              <ComposerAssist bodyHtml={bodyHtml} bodyText={bodyText} allowSuggest={kind === 'project' && !sharedPost}
+                onReplace={(html) => setEditorContent(c => ({ html, key: c.key + 1 }))}
+                onUseSuggestion={(d) => {
+                  setEditorContent(c => ({ html: textToHtml(d.body), key: c.key + 1 }));
+                  d.tags.forEach(t => addTag(t));
+                }} />
+            )}
+
             {sharedPost && <PostCards.SharedPostEmbed original={sharedPost.sharedPost || sharedPost} className="pointer-events-none" />}
 
             {/* Tutorial steps */}

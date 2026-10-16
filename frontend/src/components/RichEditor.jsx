@@ -6,7 +6,9 @@ import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
 import { I } from './icons.jsx';
 
-export function RichEditor({ placeholder, onChange, resetKey, minHeight = '6rem' }) {
+// `content` + `contentKey`: replace the whole text from outside (e.g. an accepted AI correction) whenever
+// contentKey changes; the change is reported through onChange like typing.
+export function RichEditor({ placeholder, onChange, resetKey, minHeight = '6rem', content, contentKey }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
 
@@ -28,6 +30,10 @@ export function RichEditor({ placeholder, onChange, resetKey, minHeight = '6rem'
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.commands.clearContent(true);
   }, [resetKey, editor]);
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed && contentKey) editor.commands.setContent(content || '');
+  }, [contentKey, editor]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = useEditorState({
     editor,

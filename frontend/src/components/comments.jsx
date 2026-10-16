@@ -7,6 +7,7 @@ import { api, minutesSince } from '../lib/api.js';
 import { useAuth, requestLogin } from '../lib/auth.jsx';
 import { useNow } from '../lib/hooks.js';
 import { openReport } from './report.jsx';
+import { CommentSuggestions } from './assist.jsx';
 
 export function Comments({ post, onOpenProfile, onCountChange }) {
   const { user } = useAuth();
@@ -69,7 +70,8 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
                   onReply={() => user ? setReplyTo(c.id) : requestLogin()} />
               ))}
               {replyTo === c.id && (
-                <CommentBox autoFocus placeholder={`תגובה ל${c.author.name}…`} onSubmit={(body, confirm) => add(body, c.id, confirm)}
+                <CommentBox autoFocus placeholder={`תגובה ל${c.author.name}…`} postId={post.id} parentId={c.id}
+                  onSubmit={(body, confirm) => add(body, c.id, confirm)}
                   onCancel={() => setReplyTo(null)} />
               )}
             </div>
@@ -78,7 +80,7 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
       ))}
 
       {user ? (
-        <CommentBox placeholder="כתבו תגובה…" onSubmit={(body, confirm) => add(body, null, confirm)} />
+        <CommentBox placeholder="כתבו תגובה…" postId={post.id} onSubmit={(body, confirm) => add(body, null, confirm)} />
       ) : (
         <button onClick={requestLogin} className="text-sm font-semibold text-rust-700 hover:underline">
           התחברו כדי להגיב
@@ -116,7 +118,7 @@ function CommentItem({ comment, small, onOpenProfile, onReply, onDelete, canDele
   );
 }
 
-function CommentBox({ placeholder, onSubmit, onCancel, autoFocus }) {
+function CommentBox({ placeholder, onSubmit, onCancel, autoFocus, postId, parentId }) {
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -171,6 +173,10 @@ function CommentBox({ placeholder, onSubmit, onCancel, autoFocus }) {
         </div>
       </div>
       {error && <div role="alert" className="text-xs text-rust-700 mt-1 mr-10">{error}</div>}
+      {!text.trim() && postId && (
+        <CommentSuggestions postId={postId} parentId={parentId}
+          onPick={(s) => { setText(s); setWarning(null); ref.current?.focus(); }} />
+      )}
       {warning && (
         <div role="alertdialog" aria-label="אזהרת תוכן" className="mt-2 mr-10 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm">
           <div className="font-bold text-amber-900">⚠️ התגובה עלולה להיות פוגענית</div>

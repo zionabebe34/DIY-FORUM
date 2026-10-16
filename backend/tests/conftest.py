@@ -36,7 +36,7 @@ def app(_schema, tmp_path):
     # MAIL_BACKEND=memory: tests must never send real email, whatever .env says
     # AI_PROVIDER=off: tests never call the real AI service (AI tests install a fake one)
     return create_app({'DB_NAME': TEST_DB, 'UPLOAD_DIR': str(tmp_path), 'TESTING': True, 'MAIL_BACKEND': 'memory',
-                       'AI_PROVIDER': 'off'})
+                       'AI_PROVIDER': 'off', 'AI_DAILY_BUDGET': 0})
 
 
 @pytest.fixture

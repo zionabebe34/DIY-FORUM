@@ -10,7 +10,7 @@ from flask import Flask, jsonify, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from db import close_db
-from routes import (auth_routes, interactions_routes, market_routes, messages_routes, moderation_routes,
+from routes import (assist_routes, auth_routes, interactions_routes, market_routes, messages_routes, moderation_routes,
                     notifications_routes, posts_routes, saved_routes, stores_routes, twofa_routes, users_routes)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +39,11 @@ def create_app(overrides=None):
         AI_API_URL=os.getenv('AI_API_URL', ''),
         AI_API_KEY=os.getenv('AI_API_KEY', ''),
         # Autonomous agents (agents.py): on/off and per-agent daily quotas
+        AI_ASSIST_PER_HOUR=int(os.getenv('AI_ASSIST_PER_HOUR', '30')),   # writing-assistant calls per user
+        # The course AI key has a daily quota: never use more than AI_DAILY_BUDGET calls a day (0 = no cap),
+        # and leave people's features a reserve — the agents get at most AI_AGENT_SHARE of it.
+        AI_DAILY_BUDGET=int(os.getenv('AI_DAILY_BUDGET', '100')),
+        AI_AGENT_SHARE=float(os.getenv('AI_AGENT_SHARE', '0.5')),
         AGENTS_ENABLED=os.getenv('AGENTS_ENABLED', '1') == '1',
         AGENT_MAX_POSTS=int(os.getenv('AGENT_MAX_POSTS', '3')),
         AGENT_MAX_COMMENTS=int(os.getenv('AGENT_MAX_COMMENTS', '5')),
@@ -63,6 +68,7 @@ def create_app(overrides=None):
     app.register_blueprint(notifications_routes.bp)
     app.register_blueprint(saved_routes.bp)
     app.register_blueprint(twofa_routes.bp)
+    app.register_blueprint(assist_routes.bp)
 
     @app.get('/uploads/<path:filename>')
     def uploads(filename):

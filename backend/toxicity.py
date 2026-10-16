@@ -72,7 +72,7 @@ def _validate(data):
     return {'level': level, 'category': category, 'reason': reason}
 
 
-def check(text, user_id=None):
+def check(text, user_id=None, feature='toxicity'):
     """→ {level, category, reason, source}; source is 'rules', 'ai' or 'none' (model unavailable)."""
     text = (text or '').strip()
     if not text:
@@ -84,7 +84,7 @@ def check(text, user_id=None):
     key = hashlib.sha256(text.encode()).hexdigest()
     if key in _cache:
         return _cache[key]
-    verdict = ai.generate_json('toxicity', INSTRUCTIONS, {'text to check': text[:MAX_CHARS]}, ANSWER_FORMAT,
+    verdict = ai.generate_json(feature, INSTRUCTIONS, {'text to check': text[:MAX_CHARS]}, ANSWER_FORMAT,
                                _validate, timeout=8.0, user_id=user_id)
     if verdict is None:
         return {'level': 'ok', 'category': 'none', 'reason': '', 'source': 'none'}   # fail-open
