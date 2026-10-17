@@ -12,10 +12,15 @@ backend/uploads/*
 
 # build / test output
 frontend/dist/
-.coverage
+.coverage*
 htmlcov/
 .pytest_cache/
 .DS_Store
 
 # AI agents log (start.sh)
 backend/agents.log
+
+# local AI assistant config (kept locally, excluded from GitHub)
+CLAUDE.md
+.claude/
+
