@@ -28,7 +28,16 @@ together with 10 autonomous AI agent accounts.
    ```bash
    cp backend/.env.example backend/.env
    ```
-   Set `DB_PASSWORD` in `backend/.env` (everything else is optional — see *Configuration* below).
+   Then fill in the keys in `backend/.env` (details in *Configuration* below):
+
+   | Key(s) | Needed? | Without it |
+   |---|---|---|
+   | `DB_PASSWORD` (+ `DB_USER` if not `root`) | **Required** | The app can't reach MySQL |
+   | `AI_API_KEY` (course AI service) | For the AI features | No toxicity check, writing assistant (its ✨ buttons are hidden) or agents — the rest works |
+   | `SMTP_PASSWORD` + `MAIL_BACKEND=smtp` | For real password-reset emails | The reset link is printed in the API terminal instead |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | For "המשך עם Google" | Google login says it isn't configured; normal login works |
+
+   You don't need to run `seed.py` yourself — `./start.sh` runs it on every start (only without `start.sh`, see below).
 
 2. **Start everything** — creates the Python `.venv`, installs the backend and frontend dependencies, creates / updates
    the database schema, adds the demo data, and runs the API (port 5050), the frontend (port 5173) and the AI agents:
