@@ -6,6 +6,7 @@ import { toast } from '../lib/toast.jsx';
 
 const EVENT = 'hh:report';
 
+// Open the report dialog for a post / comment / user from anywhere (a window event).
 export function openReport(target) {
   window.dispatchEvent(new CustomEvent(EVENT, { detail: target }));
 }
@@ -33,6 +34,7 @@ export function ReportHost() {
   return <ReportModal target={target} onClose={() => setTarget(null)} />;
 }
 
+// The report dialog: pick a reason, add details, send it to the moderators.
 function ReportModal({ target, onClose }) {
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');

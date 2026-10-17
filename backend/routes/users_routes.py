@@ -15,19 +15,23 @@ PAGE_SIZE = 20
 
 
 def _like_escape(text):
+    """Escape %, _ and backslash for a SQL LIKE pattern."""
     return text.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 def _me_id():
+    """The viewer's user id, or 0 when logged out."""
     me = current_user()
     return me['id'] if me else 0  # 0 never matches a real user id
 
 
 def _user_or_404(username):
+    """The user row of a username, or None."""
     return query('SELECT * FROM users WHERE username = %s', (username,), one=True)
 
 
 def _user_list(rows):
+    """User rows → public user dicts with is_following."""
     return [public_user(r, {'is_following': bool(r['is_following'])}) for r in rows]
 
 
@@ -41,6 +45,7 @@ _USER_WITH_FOLLOWING = """
 
 @bp.get('/search')
 def search_users():
+    """Search users by username / name (best match first, up to 8)."""
     q = (request.args.get('q') or '').strip().lstrip('@')
     if not q:
         return jsonify({'items': []})
@@ -78,6 +83,7 @@ def suggested_users():
 
 @bp.get('/<username>')
 def get_profile(username):
+    """A user's profile with follower / following / post counts and the follow status between us."""
     user = _user_or_404(username)
     if user is None:
         return jsonify({'error': 'המשתמש לא נמצא'}), 404
@@ -149,6 +155,7 @@ def update_me():
 
 
 def _follow_list(username, join_col, match_col):
+    """A user's followers or following, paged (offset cursor)."""
     user = _user_or_404(username)
     if user is None:
         return jsonify({'error': 'המשתמש לא נמצא'}), 404
@@ -167,17 +174,20 @@ def _follow_list(username, join_col, match_col):
 
 @bp.get('/<username>/followers')
 def followers(username):
+    """Who follows this user."""
     return _follow_list(username, join_col='follower_id', match_col='followee_id')
 
 
 @bp.get('/<username>/following')
 def following(username):
+    """Who this user follows."""
     return _follow_list(username, join_col='followee_id', match_col='follower_id')
 
 
 @bp.post('/<username>/follow')
 @login_required
 def follow(username):
+    """Follow a user (idempotent) and notify them."""
     me = current_user()
     target = _user_or_404(username)
     if target is None:
@@ -196,6 +206,7 @@ def follow(username):
 @bp.delete('/<username>/follow')
 @login_required
 def unfollow(username):
+    """Unfollow a user and remove the follow notification."""
     me = current_user()
     target = _user_or_404(username)
     if target is None:
@@ -207,4 +218,5 @@ def unfollow(username):
 
 
 def _followers_count(user_id):
+    """Number of followers a user has."""
     return int(query('SELECT COUNT(*) AS n FROM follows WHERE followee_id = %s', (user_id,), one=True)['n'])

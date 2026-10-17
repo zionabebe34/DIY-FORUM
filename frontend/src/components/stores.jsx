@@ -9,9 +9,11 @@ import { api, minutesSince } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { toast } from '../lib/toast.jsx';
 
+// ISO date → a casual Hebrew time-ago label.
 const ago = (iso) => AN.timeAgoCasual(minutesSince(iso));
 
 // --- Store list page --------------------------------------------------------
+// The #/stores page: store cards and a "write a review" form (a new store is added automatically).
 export function StoreReviews({ onOpenStore, onSign }) {
   const { user } = useAuth();
   const [composerOpen, setComposerOpen] = useState(false);
@@ -62,6 +64,7 @@ export function StoreReviews({ onOpenStore, onSign }) {
 }
 
 // --- Review form (new store, or an existing one when `store` is given) ------
+// The review form: stars, text, pros / cons (a new store also needs a name + area).
 function ReviewComposer({ store, onSaved, onCancel }) {
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
@@ -164,6 +167,7 @@ const TONES = {
   rust:    { label: 'text-rust-700',    input: 'focus:border-rust-500 focus:ring-rust-500/20',       add: 'text-rust-700' },
 };
 
+// An editable list of short lines (pros or cons) with add / remove.
 function LinesField({ label, tone, lines, placeholder, addLabel, onChange, onAdd, onRemove }) {
   const t = TONES[tone];
   return (
@@ -187,6 +191,7 @@ function LinesField({ label, tone, lines, placeholder, addLabel, onChange, onAdd
   );
 }
 
+// A store card in the list: cover, name, area, rating and review count.
 function StoreCard({ store, onOpenStore }) {
   return (
     <button onClick={() => onOpenStore(store.id)}
@@ -217,6 +222,7 @@ function StoreCard({ store, onOpenStore }) {
 }
 
 // --- Store detail page ------------------------------------------------------
+// The #/store/<id> page: store details, rating histogram, sorted reviews and the review form.
 export function Store({ storeId, onOpenProfile, onView, onSign }) {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -362,6 +368,7 @@ export function Store({ storeId, onOpenProfile, onView, onSign }) {
   );
 }
 
+// One review: author, stars, text, pros / cons and delete (author / staff).
 function StoreReviewItem({ review, onOpenProfile, onDelete }) {
   const open = () => onOpenProfile(review.author.username);
   return (

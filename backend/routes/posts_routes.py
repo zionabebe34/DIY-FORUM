@@ -32,10 +32,12 @@ _POST_SELECT = """
 
 
 def _in_clause(ids):
+    """SQL placeholders for an IN (...) list: "%s, %s, ..." (one per id)."""
     return ', '.join(['%s'] * len(ids))
 
 
 def _serialize_posts(rows, embed_shared=True):
+    """Post rows → API dicts (images, tags, like/comment/save counts, my like/save, author, shared original)."""
     if not rows:
         return []
     ids = [r['id'] for r in rows]
@@ -125,6 +127,7 @@ def _page(where, params):
 
 @bp.get('/feed')
 def feed():
+    """Home feed: all posts, or (?scope=following) mine + the people I follow."""
     scope = request.args.get('scope', 'global')
     if scope == 'following':
         me = current_user()
@@ -138,6 +141,7 @@ def feed():
 
 @bp.get('/users/<username>/posts')
 def user_posts(username):
+    """One user's posts (profile page), paged."""
     user = query('SELECT id FROM users WHERE username = %s', (username,), one=True)
     if user is None:
         return jsonify({'error': 'המשתמש לא נמצא'}), 404
@@ -146,6 +150,7 @@ def user_posts(username):
 
 @bp.get('/posts/<int:post_id>')
 def get_post(post_id):
+    """A single post by id (the #/post/<id> page)."""
     rows = query(f'{_POST_SELECT} WHERE p.id = %s AND u.is_banned = FALSE', (post_id,))
     if not rows:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
@@ -154,11 +159,13 @@ def get_post(post_id):
 
 # ── Creating posts ──────────────────────────────────────────────────────────
 def normalize_tag(raw):
+    """Clean a tag name: drop the '#', spaces → '_', max 50 chars (None if empty)."""
     tag = re.sub(r'\s+', '_', str(raw).strip().lstrip('#'))
     return tag[:50] if tag else None
 
 
 def _save_tags(post_id, names):
+    """Create the missing tags and link them all to the post."""
     for name in names:
         execute('INSERT IGNORE INTO tags (name) VALUES (%s)', (name,))
     rows = query(f'SELECT id FROM tags WHERE name IN ({_in_clause(names)})', names)
@@ -169,6 +176,7 @@ def _save_tags(post_id, names):
 @bp.post('/posts')
 @login_required
 def create_post():
+    """Publish a post (project / tutorial / share) with images, steps and tags; notify the shared author + @mentions."""
     me = current_user()
     form = request.form
     kind = form.get('kind', 'project')
@@ -247,6 +255,7 @@ def create_post():
 @bp.delete('/posts/<int:post_id>')
 @login_required
 def delete_post(post_id):
+    """Delete a post (its author or a moderator) and close the reports on it."""
     post = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
     if post is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404

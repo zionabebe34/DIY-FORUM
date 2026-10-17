@@ -18,6 +18,7 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 
 def create_app(overrides=None):
+    """Build the Flask app: config from .env, all blueprints, /uploads, /api/health and JSON error replies."""
     app = Flask(__name__)
     app.config.update(
         DB_HOST=os.getenv('DB_HOST', 'localhost'),

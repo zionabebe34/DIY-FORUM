@@ -10,6 +10,7 @@ import { toast } from '../lib/toast.jsx';
 
 const input = "w-full rounded-lg border border-slate-200 focus:border-rust-500 focus:ring-2 focus:ring-rust-500/20 outline-none px-3 py-2 text-sm";
 
+// The 2FA settings dialog: set up with a QR code, confirm a code, backup codes, regenerate or turn off.
 export function SecurityModal({ onClose }) {
   const { updateUser } = useAuth();
   const [status, setStatus] = useState(null);       // { enabled, recovery_codes_left }
@@ -190,6 +191,7 @@ export function SecurityModal({ onClose }) {
   );
 }
 
+// Cancel + submit buttons at the bottom of each step's form.
 function Actions({ busy, onCancel, label, danger }) {
   return (
     <div className="flex items-center justify-end gap-2 pt-1">

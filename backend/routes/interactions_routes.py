@@ -16,15 +16,18 @@ MAX_COMMENTS = 300   # per request — plenty for a post's thread
 
 
 def _post_exists(post_id):
+    """True if the post exists."""
     return query('SELECT id FROM posts WHERE id = %s', (post_id,), one=True) is not None
 
 
 def _post_author(post_id):
+    """The post's author id, or None if there is no such post."""
     row = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
     return row and row['author_id']
 
 
 def _likes_count(post_id):
+    """Number of likes on a post."""
     return int(query('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = %s', (post_id,), one=True)['n'])
 
 
@@ -32,6 +35,7 @@ def _likes_count(post_id):
 @bp.post('/posts/<int:post_id>/like')
 @login_required
 def like(post_id):
+    """Like a post (idempotent) and notify its author."""
     author_id = _post_author(post_id)
     if author_id is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
@@ -48,6 +52,7 @@ def like(post_id):
 @bp.delete('/posts/<int:post_id>/like')
 @login_required
 def unlike(post_id):
+    """Remove my like and its notification."""
     author_id = _post_author(post_id)
     if author_id is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
@@ -67,6 +72,7 @@ _COMMENT_SELECT = """
 
 
 def _serialize_comment(r):
+    """Comment row → API dict with its author."""
     return {
         'id': r['id'],
         'post_id': r['post_id'],
@@ -93,6 +99,7 @@ def list_comments(post_id):
 @bp.post('/posts/<int:post_id>/comments')
 @login_required
 def add_comment(post_id):
+    """Comment / reply on a post: toxicity check, then notify the post author, the replied-to user and @mentions."""
     post_author = _post_author(post_id)
     if post_author is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404

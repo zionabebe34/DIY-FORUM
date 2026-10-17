@@ -2,6 +2,7 @@ import React from 'react';
 // Minimal lucide-style stroke icons. Inline so we don't depend on a CDN bundle.
 // All paths use currentColor; size and strokeWidth tunable per-instance.
 
+// The <svg> wrapper every icon uses (size, stroke width, currentColor).
 const Svg = ({ size = 20, strokeWidth = 2, className = '', fill = 'none', children, ...rest }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
        fill={fill} stroke="currentColor" strokeWidth={strokeWidth}

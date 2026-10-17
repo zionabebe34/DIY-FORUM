@@ -12,10 +12,12 @@ MAX_CHARS = 2000
 
 
 def _other(username):
+    """The (not banned) user with this username, or None."""
     return query('SELECT * FROM users WHERE username = %s AND is_banned = FALSE', (username,), one=True)
 
 
 def _message(r, me_id, listings):
+    """Message row → API dict (from_me, read, attached listing)."""
     return {'id': r['id'], 'body': r['body'], 'created_at': iso(r['created_at']), 'from_me': r['sender_id'] == me_id,
             'read': r['read_at'] is not None, 'listing': listings.get(r['listing_id'])}
 
@@ -76,6 +78,7 @@ def thread(username):
 @bp.post('/with/<username>')
 @login_required
 def send(username):
+    """Send a private message (optionally about a marketplace listing)."""
     me = current_user()
     other = _other(username)
     if other is None:

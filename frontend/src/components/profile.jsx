@@ -14,6 +14,7 @@ import { toast } from '../lib/toast.jsx';
 
 const COVERS = ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'];
 
+// The #/u/<username> page: header + stats, follow / message / edit / report / ban, and its tabs.
 export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSign, onPickTag, createdPosts = [] }) {
   const { user } = useAuth();
   const [person, setPerson] = useState(null);
@@ -231,6 +232,7 @@ export function Profile({ username, onOpenProfile, onOpenMessages, onView, onSig
   );
 }
 
+// A clickable counter in the profile header (followers / following / posts).
 function Stat({ label, value, accent, onClick }) {
   return (
     <button onClick={onClick} className="px-4 py-3 text-center hover:bg-slate-50 transition">
@@ -242,6 +244,7 @@ function Stat({ label, value, accent, onClick }) {
   );
 }
 
+// The user's posts with infinite scroll (+ the ones just published).
 function ProfilePosts({ username, firstName, onOpenProfile, onPickTag, createdPosts, onDeleted }) {
   const { items, loading, hasMore, error, loadMore, retry, remove } =
     usePaginated((opts) => api.userPosts(username, opts), [username]);
@@ -271,6 +274,7 @@ function ProfilePosts({ username, firstName, onOpenProfile, onPickTag, createdPo
   );
 }
 
+// The about tab: bio, details (location, joined, handle …) and skills.
 function ProfileAbout({ person }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -310,6 +314,7 @@ function ProfileAbout({ person }) {
   );
 }
 
+// One label / value row in the details card.
 function Detail({ label, value, ltr }) {
   return (
     <div className="flex items-center justify-between py-2">
@@ -320,6 +325,7 @@ function Detail({ label, value, ltr }) {
 }
 
 // ── Edit profile ────────────────────────────────────────────────────────────
+// Edit my profile: name, bio, location, cover, skills and profile photo.
 export function EditProfileModal({ onClose, onSaved }) {
   const { user, updateUser } = useAuth();
   const [name, setName] = useState(user.name);

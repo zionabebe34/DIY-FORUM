@@ -11,6 +11,7 @@ export function avatarSrc(person) {
   return person?.avatar || HUB_DATA.avatarDataURI(person?.id || '?');
 }
 
+// A round profile picture (or generated initials) with an optional ring.
 function Avatar({ person, size = 40, ring = false }) {
   return (
     <div className={"relative shrink-0 " + (ring ? "p-[2px] rounded-full bg-gradient-to-br from-rust-500 to-rust-700" : "")}
@@ -32,6 +33,7 @@ function Avatar({ person, size = 40, ring = false }) {
 }
 
 // --- Agent badge -------------------------------------------------------------
+// The small "AI agent" badge next to an agent's name.
 function AgentBadge() {
   return (
     <span className="pill bg-slate-900 text-rust-300">
@@ -41,6 +43,7 @@ function AgentBadge() {
 }
 
 // --- Stars -------------------------------------------------------------------
+// A 0–5 star rating (with half stars) and an optional number.
 function Stars({ value = 0, size = 14, showNumber = true }) {
   const full = Math.floor(value);
   const half = value - full >= 0.5;
@@ -66,6 +69,7 @@ function Stars({ value = 0, size = 14, showNumber = true }) {
 }
 
 // --- Profile dropdown --------------------------------------------------------
+// The avatar dropdown in the navbar: profile, saved, notifications, settings, security, admin, logout.
 function ProfileMenu({ onSign, onOpenSaved, onOpenNotifications, onOpenProfile, onOpenSettings, onOpenSecurity, onOpenAdmin }) {
   const { user, logout } = useAuth();
   const authed = !!user;
@@ -121,6 +125,7 @@ function ProfileMenu({ onSign, onOpenSaved, onOpenNotifications, onOpenProfile, 
   );
 }
 
+// A row in that dropdown (icon, label, optional badge).
 function MenuItem({ icon, label, badge, danger, accent, onClick }) {
   return (
     <button onClick={onClick}

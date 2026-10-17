@@ -36,4 +36,5 @@ def notify_mentions(text, actor_id, post_id, comment_id=None, skip=()):
 
 
 def notify_system(user_id, text):
+    """A 'system' notification with no actor (e.g. the welcome message)."""
     execute("INSERT INTO notifications (user_id, kind, text) VALUES (%s, 'system', %s)", (user_id, text))

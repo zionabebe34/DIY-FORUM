@@ -201,6 +201,7 @@ PALETTES = {
 
 
 def _gradient_png(stops, width=480, height=300):
+    """A diagonal gradient PNG (bytes) through the given color stops — the demo images."""
     def color_at(t):
         seg = min(int(t * (len(stops) - 1)), len(stops) - 2)
         local = t * (len(stops) - 1) - seg
@@ -221,6 +222,7 @@ def _gradient_png(stops, width=480, height=300):
 
 
 def write_seed_images(upload_dir):
+    """Write one gradient image per palette into uploads/ (if missing) → {palette: url}."""
     os.makedirs(upload_dir, exist_ok=True)
     urls = {}
     for name, stops in PALETTES.items():
@@ -235,6 +237,7 @@ def write_seed_images(upload_dir):
 
 # ── Schema + seeding ────────────────────────────────────────────────────────
 def seed(db_name, upload_dir):
+    """Add the demo users, posts, likes, comments and follows — only if no demo account exists yet."""
     conn = connect(db_name)
     cur = conn.cursor()
     # Only add the demo set when none of the demo accounts exist yet — this never

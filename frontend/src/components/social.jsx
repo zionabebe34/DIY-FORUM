@@ -6,13 +6,13 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useInfiniteScroll, usePaginated } from '../lib/hooks.js';
 
+// Every FollowButton for the same user stays in sync (sidebar, profile, lists)
+export const FOLLOW_EVENT = 'hh:follow';
+
 /**
  * Follow / unfollow toggle with optimistic update.
  * onChange(isFollowing, followersCount) lets parents keep counters in sync.
  */
-// Every FollowButton for the same user stays in sync (sidebar, profile, lists)
-export const FOLLOW_EVENT = 'hh:follow';
-
 export function FollowButton({ person, onChange, onSign, size = 'sm' }) {
   const { user } = useAuth();
   const [following, setFollowing] = useState(person.isFollowing);
@@ -64,6 +64,7 @@ export function FollowButton({ person, onChange, onSign, size = 'sm' }) {
   );
 }
 
+// A person row: avatar, name, subtitle and a follow button.
 export function UserRow({ person, onOpenProfile, onSign, subtitle }) {
   const open = () => onOpenProfile && onOpenProfile(person.username);
   return (
@@ -112,6 +113,7 @@ export function PeopleList({ username, which, onOpenProfile, onSign, emptyText }
   );
 }
 
+// A loading spinner with a label.
 export function Spinner({ label = 'טוען…' }) {
   return (
     <div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
@@ -124,6 +126,7 @@ export function Spinner({ label = 'טוען…' }) {
   );
 }
 
+// An error message with a retry button.
 export function ErrorRow({ message, onRetry }) {
   return (
     <div className="flex items-center justify-center gap-3 py-5 text-sm">

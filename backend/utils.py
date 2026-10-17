@@ -19,6 +19,7 @@ def iso(dt):
 
 
 def parse_json_list(raw, default=None):
+    """A list from a DB / form value (a list, JSON text or empty) → that list, else `default` or []."""
     if raw is None or raw == '':
         return default if default is not None else []
     if isinstance(raw, list):
@@ -47,6 +48,7 @@ def sanitize_html(html):
 
 
 def html_to_text(html):
+    """HTML → plain text (tags removed, whitespace collapsed)."""
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html or '')).strip()
 
 
@@ -61,6 +63,7 @@ _SIGNATURES = {
 
 
 def _sniff_image(head):
+    """Image type by its first bytes (magic number) → 'jpg' / 'png' / 'gif' / 'webp', or None."""
     for sig, ext in _SIGNATURES.items():
         if head.startswith(sig):
             return ext
@@ -70,6 +73,7 @@ def _sniff_image(head):
 
 
 class UploadError(ValueError):
+    """An uploaded image was rejected (the message is shown to the user)."""
     pass
 
 

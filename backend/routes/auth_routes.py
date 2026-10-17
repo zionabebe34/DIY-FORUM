@@ -27,6 +27,7 @@ _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 
 @bp.post('/signup')
 def signup():
+    """Register with name, username, email and password, then log the new user in."""
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
     username = (data.get('username') or '').strip().lstrip('@')
@@ -63,6 +64,7 @@ def signup():
 
 @bp.post('/login')
 def login():
+    """Log in with email / username + password (2FA users get a challenge instead of a session)."""
     data = request.get_json(silent=True) or {}
     login_id = (data.get('login') or '').strip().lstrip('@')
     password = data.get('password') or ''
@@ -83,6 +85,7 @@ def login():
 
 @bp.post('/logout')
 def logout():
+    """Delete the session and clear the cookie."""
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         delete_session(token)
@@ -94,6 +97,7 @@ def logout():
 
 @bp.get('/me')
 def me():
+    """The logged-in user, or null (the app asks on load)."""
     user = current_user()
     return jsonify({'user': private_user(user) if user else None})
 
@@ -114,6 +118,7 @@ def _valid_reset(token):
 
 
 def _reset_email(user, link):
+    """The password-reset email (plain text + HTML) with the link."""
     text = (f'שלום {user["name"]},\n\n'
             f'קיבלנו בקשה לאפס את הסיסמה לחשבון HandyHub שלך (@{user["username"]}).\n'
             f'לבחירת סיסמה חדשה היכנסו לקישור (תקף ל-{RESET_MINUTES} דקות):\n{link}\n\n'
@@ -172,12 +177,14 @@ def forgot_password():
 
 @bp.get('/reset/<token>')
 def check_reset_token(token):
+    """Is this reset link still valid? (the #/reset/<token> page asks before showing the form)"""
     user = _valid_reset(token)
     return jsonify({'valid': user is not None, 'username': user['username'] if user else None})
 
 
 @bp.post('/reset')
 def reset_password():
+    """Set a new password with a valid reset token; logs out every device."""
     data = request.get_json(silent=True) or {}
     password = data.get('password') or ''
     user = _valid_reset(data.get('token') or '')
@@ -195,10 +202,12 @@ def reset_password():
 
 # ── Google OAuth 2.0 (Login with Google) ────────────────────────────────────
 def _google_redirect_uri():
+    """The callback URL Google sends the user back to."""
     return f"{current_app.config['APP_URL']}/api/auth/google/callback"
 
 
 def _oauth_redirect(params=None):
+    """Redirect back to the app (with an error / 2FA query param) and drop the OAuth state cookie."""
     qs = ('?' + urllib.parse.urlencode(params)) if params else ''
     resp = make_response(redirect(f"{current_app.config['APP_URL']}/{qs}#/"))
     resp.delete_cookie(OAUTH_STATE_COOKIE, samesite='Lax')
@@ -206,6 +215,7 @@ def _oauth_redirect(params=None):
 
 
 def _unique_username(email):
+    """A free username made from the email's local part (name, name_2, …)."""
     base = re.sub(r'[^A-Za-z0-9_.]', '_', email.split('@')[0]).strip('_.')[:22]
     if len(base) < 3:
         base = 'maker'
@@ -248,6 +258,7 @@ def _google_fetch_profile(code):
 
 
 def _google_find_or_create_user(info):
+    """The user of a Google profile: by google_id, else linked by email, else a new account."""
     sub = str(info['sub']).strip()[:64]
     email = str(info['email']).strip().lower()
     name = (str(info.get('name') or '').strip() or email.split('@')[0])[:80]
@@ -278,6 +289,7 @@ def _google_find_or_create_user(info):
 
 @bp.get('/google')
 def google_start():
+    """Start Login with Google: set a state cookie and redirect to Google's consent screen."""
     client_id = current_app.config['GOOGLE_CLIENT_ID']
     if not client_id or not current_app.config['GOOGLE_CLIENT_SECRET']:
         return _oauth_redirect({'oauth_error': 'not_configured'})
@@ -298,6 +310,7 @@ def google_start():
 
 @bp.get('/google/callback')
 def google_callback():
+    """Google sends the user back here: check the state, fetch the profile, log in (or start 2FA)."""
     if request.args.get('error'):
         return _oauth_redirect({'oauth_error': 'cancelled'})
     state = request.args.get('state') or ''

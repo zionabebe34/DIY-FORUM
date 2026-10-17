@@ -87,6 +87,7 @@ export function useNow(ms = 60000) {
   return now;
 }
 
+// `value`, updated only once it stopped changing for `ms` (for search boxes).
 export function useDebounced(value, ms = 250) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -108,4 +109,5 @@ export function useAIEnabled() {
   }, []);
   return enabled;
 }
+// Tests only: forget the cached AI status.
 export function resetAIStatusForTests() { aiStatus = null; }

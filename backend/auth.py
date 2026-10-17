@@ -15,14 +15,17 @@ SESSION_DAYS = 14
 
 
 def hash_password(plain):
+    """bcrypt hash of a plain password."""
     return bcrypt.hashpw(plain.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def check_password(plain, hashed):
+    """True when `plain` matches the stored bcrypt hash."""
     return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def token_hash(token):
+    """SHA-256 of a token — the DB stores only hashes of session / reset tokens."""
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
@@ -36,10 +39,12 @@ def create_session(user_id):
 
 
 def delete_session(token):
+    """Delete the session row of this raw token (logout)."""
     execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(token),))
 
 
 def set_session_cookie(response, token):
+    """Put the session token in an httpOnly cookie (valid SESSION_DAYS)."""
     response.set_cookie(
         SESSION_COOKIE, token,
         max_age=SESSION_DAYS * 24 * 3600,
@@ -50,6 +55,7 @@ def set_session_cookie(response, token):
 
 
 def clear_session_cookie(response):
+    """Remove the session cookie from the browser."""
     response.delete_cookie(SESSION_COOKIE, samesite='Lax')
 
 
@@ -77,6 +83,7 @@ def current_user():
 
 
 def login_required(view):
+    """Decorator: 401 unless someone is logged in."""
     @wraps(view)
     def wrapper(*args, **kwargs):
         if current_user() is None:
@@ -86,14 +93,17 @@ def login_required(view):
 
 
 def is_moderator(user):
+    """True for moderators and admins."""
     return user is not None and user.get('role') in ('moderator', 'admin')
 
 
 def is_admin(user):
+    """True for admins only."""
     return user is not None and user.get('role') == 'admin'
 
 
 def moderator_required(view):
+    """Decorator: 401 when logged out, 403 unless the user is a moderator or admin."""
     @wraps(view)
     def wrapper(*args, **kwargs):
         user = current_user()

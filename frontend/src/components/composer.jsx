@@ -13,6 +13,7 @@ const { useState: useStateC, useRef: useRefC, useEffect: useEffectC } = React;
 
 const PLACEHOLDER_BGS = ['ph-wood', 'ph-steel', 'ph-clay', 'ph-leaf', 'ph-paper', 'ph-night'];
 
+// The new-post modal: project / tutorial (steps) / marketplace listing, with images, tags and the AI assistant.
 // `sharedPost` → a "share" post: a few words + a preview of that post (no type tabs / images)
 function PostComposer({ open, onClose, onCreated, onListingCreated, mode = 'project', sharedPost = null }) {
   const { user } = useAuth();

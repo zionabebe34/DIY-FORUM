@@ -22,6 +22,7 @@ _STORE_SELECT = """
 
 
 def _store(r):
+    """Store row → API dict with its review count and average rating."""
     return {
         'id': r['id'], 'name': r['name'], 'area': r['area'], 'cover': r['cover'], 'address': r['address'],
         'phone': r['phone'], 'hours': r['hours'], 'summary': r['summary'] or '',
@@ -32,6 +33,7 @@ def _store(r):
 
 
 def _review(r):
+    """Review row → API dict (rating, pros / cons, author)."""
     as_list = lambda v: parse_json_list(v) if isinstance(v, (str, bytes)) else (v or [])
     return {'id': r['id'], 'store_id': r['store_id'], 'rating': float(r['rating']), 'body': r['body'] or '',
             'pros': as_list(r['pros']), 'cons': as_list(r['cons']), 'created_at': iso(r['created_at']),
@@ -40,12 +42,14 @@ def _review(r):
 
 @bp.get('/stores')
 def list_stores():
+    """All stores, most reviewed first."""
     rows = query(f'{_STORE_SELECT} GROUP BY s.id ORDER BY reviews_count DESC, s.id DESC')
     return jsonify({'items': [_store(r) for r in rows]})
 
 
 @bp.get('/stores/<int:store_id>')
 def get_store(store_id):
+    """One store with its reviews (?sort=recent|highest|lowest) and the star-rating histogram."""
     row = query(f'{_STORE_SELECT} WHERE s.id = %s GROUP BY s.id', (store_id,), one=True)
     if row is None:
         return jsonify({'error': 'החנות לא נמצאה'}), 404
@@ -61,6 +65,7 @@ def get_store(store_id):
 
 
 def _clean_lines(raw):
+    """Pros / cons JSON → up to 8 trimmed lines."""
     return [str(x).strip()[:80] for x in parse_json_list(raw) if str(x).strip()][:8]
 
 
@@ -111,6 +116,7 @@ def write_review():
 @bp.delete('/stores/reviews/<int:review_id>')
 @login_required
 def delete_review(review_id):
+    """Delete a store review (its author or a moderator)."""
     row = query('SELECT author_id FROM store_reviews WHERE id = %s', (review_id,), one=True)
     if row is None:
         return jsonify({'error': 'הביקורת לא נמצאה'}), 404

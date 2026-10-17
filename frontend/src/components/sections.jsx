@@ -11,6 +11,7 @@ import { StoreReviews, Store } from './stores.jsx';
 const { useState: useStateM, useEffect: useEffectM } = React;
 
 // --- Sidebar ----------------------------------------------------------------
+// The side column: suggested makers, trending hashtags and a mini footer.
 function Sidebar({ onOpenProfile, onPickTag, onSign, refreshKey }) {
   return (
     <aside className="space-y-4">
@@ -21,6 +22,7 @@ function Sidebar({ onOpenProfile, onPickTag, onSign, refreshKey }) {
   );
 }
 
+// The "suggested makers" box: people to follow, with follow buttons.
 function SuggestedMakers({ onOpenProfile, onSign, refreshKey }) {
   const { user } = useAuth();
   const [people, setPeople] = useStateM(null);
@@ -68,6 +70,7 @@ function SuggestedMakers({ onOpenProfile, onSign, refreshKey }) {
 
 const TRENDING_REFRESH_MS = 60000;
 
+// The trending hashtags box (top 5; a click filters the feed).
 // Ranked by activity this week; the number is the exact count of posts that use the tag.
 // Refreshes when a post is published / deleted here, and every minute for everyone else's posts.
 function TrendingProjects({ onPickTag, refreshKey }) {
@@ -112,6 +115,7 @@ function TrendingProjects({ onPickTag, refreshKey }) {
   );
 }
 
+// The small footer links under the sidebar.
 function FooterMini() {
   return (
     <div className="px-2 py-2 text-[11px] text-slate-400 flex flex-wrap gap-x-3 gap-y-1">

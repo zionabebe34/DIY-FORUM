@@ -13,8 +13,10 @@ import { toast } from '../lib/toast.jsx';
 const TARGET_LABEL = { post: 'פוסט', comment: 'תגובה', user: 'משתמש' };
 const RESOLUTION_LABEL = { content_deleted: 'התוכן נמחק', user_banned: 'המשתמש נחסם', dismissed: 'נסגר ללא הפרה' };
 const ROLE_LABEL = { user: 'משתמש', moderator: 'מודרטור', admin: 'מנהל' };
+// ISO date → a casual Hebrew time-ago label.
 const ago = (iso) => AN.timeAgoCasual(minutesSince(iso));
 
+// The #/admin page (staff only): stats header + tabs for open reports, handled reports and users.
 export function AdminDashboard({ onOpenProfile, onView }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('open');
@@ -84,6 +86,7 @@ export function AdminDashboard({ onOpenProfile, onView }) {
   );
 }
 
+// One number in the dashboard header.
 function StatTile({ label, value, accent }) {
   return (
     <div className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
@@ -94,6 +97,7 @@ function StatTile({ label, value, accent }) {
 }
 
 // ── Report cases ────────────────────────────────────────────────────────────
+// The report cases (open or handled), each as a CaseCard; opens the ban dialog.
 function CaseList({ status, onOpenProfile, onChanged }) {
   const [cases, setCases] = useState(null);
   const [error, setError] = useState('');
@@ -129,6 +133,7 @@ function CaseList({ status, onOpenProfile, onChanged }) {
   );
 }
 
+// One reported post / comment / user: its reports and the actions (delete content, ban author, dismiss).
 function CaseCard({ c, onOpenProfile, onDone, onBan }) {
   const [showReports, setShowReports] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -225,6 +230,7 @@ function CaseCard({ c, onOpenProfile, onDone, onBan }) {
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
+// Users tab: search / filter users, ban or unban them, and (admins) change their role.
 function UserAdmin({ onOpenProfile, onChanged }) {
   const { user: me } = useAuth();
   const [q, setQ] = useState('');
@@ -314,6 +320,7 @@ function UserAdmin({ onOpenProfile, onChanged }) {
 }
 
 // ── Ban dialog ──────────────────────────────────────────────────────────────
+// Ban a user with a reason, optionally deleting all their posts and comments.
 export function BanDialog({ person, onClose, onDone }) {
   const [reason, setReason] = useState('');
   const [purge, setPurge] = useState(false);

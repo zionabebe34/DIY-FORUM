@@ -10,11 +10,13 @@ import DOMPurify from 'dompurify';
 
 const chip = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition disabled:opacity-50";
 
+// Plain text → escaped HTML paragraphs (blank line = new <p>, newline = <br>).
 export function textToHtml(text) {
   const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 }
 
+// AI buttons in the post composer: spelling fix (before / after → replace) and 3 suggested drafts.
 export function ComposerAssist({ bodyHtml, bodyText, allowSuggest, onReplace, onUseSuggestion }) {
   const enabled = useAIEnabled();
   const [mode, setMode] = useState(null);        // null | 'correct' | 'suggest'
@@ -105,6 +107,7 @@ export function ComposerAssist({ bodyHtml, bodyText, allowSuggest, onReplace, on
   );
 }
 
+// AI button under a comment box: 3 suggested comments, a click puts one in the box.
 export function CommentSuggestions({ postId, parentId, onPick }) {
   const enabled = useAIEnabled();
   const [items, setItems] = useState(null);

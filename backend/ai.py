@@ -48,12 +48,14 @@ _quota_reset_at = None
 
 
 def _next_utc_midnight():
+    """The next 00:00 UTC — when the course AI quota resets."""
     from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
     return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def quota_exhausted():
+    """True while the service has said 'Limit Exceeded' and the quota hasn't reset yet."""
     from datetime import datetime, timezone
     return _quota_reset_at is not None and datetime.now(timezone.utc) < _quota_reset_at
 
@@ -94,6 +96,7 @@ def within_budget(feature):
 
 
 def enabled():
+    """True when the course AI service is configured (AI_PROVIDER=course_api + URL + key)."""
     cfg = current_app.config
     return cfg.get('AI_PROVIDER') == 'course_api' and bool(cfg.get('AI_API_URL')) and bool(cfg.get('AI_API_KEY'))
 
@@ -145,6 +148,7 @@ def extract_json(text):
 
 
 def _log(feature, status, started, error=None, output=None, user_id=None):
+    """Record one model call in ai_calls (feature, status, latency, error / output); never raises."""
     try:
         execute("""INSERT INTO ai_calls (feature, status, latency_ms, error, output, user_id)
                    VALUES (%s, %s, %s, %s, %s, %s)""",

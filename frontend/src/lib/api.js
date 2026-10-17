@@ -3,6 +3,7 @@
 
 import { announcePostsChanged } from './intents.js';
 
+// A failed request: the server's (Hebrew) error message + HTTP status (+ the whole JSON body).
 export class ApiError extends Error {
   constructor(message, status, data = null) {
     super(message);
@@ -11,6 +12,7 @@ export class ApiError extends Error {
   }
 }
 
+// fetch() an API path (JSON or FormData body, session cookie) → the JSON; throws ApiError on failure.
 async function request(path, { method = 'GET', json, form } = {}) {
   const opts = { method, credentials: 'same-origin', headers: {} };
   if (form) {
@@ -31,6 +33,7 @@ async function request(path, { method = 'GET', json, form } = {}) {
   return data;
 }
 
+// { key: value } → "?key=value&…" (empty values skipped).
 const qs = (params) => {
   const s = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') s.set(k, v); });
@@ -39,11 +42,13 @@ const qs = (params) => {
 };
 
 // ── Adapters ────────────────────────────────────────────────────────────────
+// Minutes since an ISO date (0 when there is none).
 export function minutesSince(iso) {
   if (!iso) return 0;
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
+// API user → the components' person shape (id = username, avatar, counts, follow state …).
 export function toPerson(u) {
   if (!u) return null;
   return {
@@ -76,6 +81,7 @@ export function toPerson(u) {
   };
 }
 
+// API post → the components' shape (author, images, tags, steps, stats, shared post).
 export function toPost(p) {
   return {
     id: p.id,
@@ -96,6 +102,7 @@ export function toPost(p) {
   };
 }
 
+// API comment → the components' shape.
 export function toComment(c) {
   return {
     id: c.id,
@@ -107,6 +114,7 @@ export function toComment(c) {
   };
 }
 
+// API marketplace listing → the components' shape.
 export function toListing(l) {
   return {
     id: l.id,
@@ -127,6 +135,7 @@ export function toListing(l) {
   };
 }
 
+// API store → the components' shape.
 export function toStore(s) {
   return {
     id: s.id, name: s.name, area: s.area, bg: s.cover, address: s.address, phone: s.phone, hours: s.hours,
@@ -134,24 +143,29 @@ export function toStore(s) {
   };
 }
 
+// API store review → the components' shape.
 export function toReview(r) {
   return { id: r.id, rating: r.rating, body: r.body, pros: r.pros, cons: r.cons, createdAt: r.created_at,
            author: toPerson(r.author) };
 }
 
+// API private message → the components' shape (from: 'me' | 'them').
 export function toMessage(m) {
   return { id: m.id, text: m.body, createdAt: m.created_at, from: m.from_me ? 'me' : 'them', read: m.read,
            listing: m.listing ? toListing(m.listing) : null };
 }
 
+// API notification → the components' shape.
 export function toNotification(n) {
   return { id: n.id, kind: n.kind, text: n.text, createdAt: n.created_at, read: n.read, commentId: n.comment_id,
            actor: n.actor ? toPerson(n.actor) : null, post: n.post };
 }
 
+// A paged response → { items (adapted with `mapper`), nextCursor }.
 const page = (mapper) => (data) => ({ items: data.items.map(mapper), nextCursor: data.next_cursor });
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
+// One method per API endpoint, each resolving to adapted data (components never see raw API rows).
 export const api = {
   me: () => request('/api/auth/me').then(d => d.user),
   // → { user } or, for an account with 2FA, { two_factor_required, challenge }

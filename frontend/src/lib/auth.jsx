@@ -5,6 +5,7 @@ import { api, toPerson } from './api.js';
 
 const AuthContext = createContext(null);
 
+// Context provider: loads the logged-in user on start; login / 2FA / signup / logout / updateUser.
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);       // design-shaped person (toPerson)
   const [ready, setReady] = useState(false);
@@ -47,6 +48,7 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// { user, ready, login, loginWithCode, signup, logout, updateUser } from AuthProvider.
 export function useAuth() {
   return useContext(AuthContext);
 }

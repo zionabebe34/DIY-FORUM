@@ -9,6 +9,7 @@ import { useNow } from '../lib/hooks.js';
 import { openReport } from './report.jsx';
 import { CommentSuggestions } from './assist.jsx';
 
+// A post's comment thread: loads it, shows replies under their comment, add / delete / report.
 export function Comments({ post, onOpenProfile, onCountChange }) {
   const { user } = useAuth();
   const [items, setItems] = useState(null);       // null = loading
@@ -90,6 +91,7 @@ export function Comments({ post, onOpenProfile, onCountChange }) {
   );
 }
 
+// One comment bubble: author, text, time and reply / delete / report links.
 function CommentItem({ comment, small, onOpenProfile, onReply, onDelete, canDelete, onReport }) {
   useNow(60000);
   const { author } = comment;
@@ -118,6 +120,7 @@ function CommentItem({ comment, small, onOpenProfile, onReply, onDelete, canDele
   );
 }
 
+// The comment / reply box: grows with the text, AI suggestions, the toxicity warning.
 function CommentBox({ placeholder, onSubmit, onCancel, autoFocus, postId, parentId }) {
   const { user } = useAuth();
   const [text, setText] = useState('');

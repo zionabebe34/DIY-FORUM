@@ -3,10 +3,12 @@ import React, { useEffect, useState } from 'react';
 
 const EVENT = 'hh:toast';
 
+// Show a short toast message ('ok' or 'error') from anywhere.
 export function toast(message, kind = 'ok') {
   window.dispatchEvent(new CustomEvent(EVENT, { detail: { message, kind, id: Date.now() + Math.random() } }));
 }
 
+// Renders the toasts at the bottom of the screen (each disappears after 3.5 s).
 export function Toaster() {
   const [items, setItems] = useState([]);
   useEffect(() => {

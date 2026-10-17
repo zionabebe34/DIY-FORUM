@@ -16,6 +16,7 @@ FILTERS = {
 
 
 def _post_label(r):
+    """Short {id, kind, title} of the notification's post (None if it has none)."""
     if r['post_id'] is None:
         return None
     text = r['p_title'] or html_to_text(r['p_body_html'] or '')
@@ -23,6 +24,7 @@ def _post_label(r):
 
 
 def _serialize(r):
+    """Notification row → API dict (actor, post label, read)."""
     return {
         'id': r['id'], 'kind': r['kind'], 'text': r['text'], 'created_at': iso(r['created_at']),
         'read': r['read_at'] is not None, 'comment_id': r['comment_id'],
@@ -32,6 +34,7 @@ def _serialize(r):
 
 
 def _unread_count(user_id):
+    """The user's unread notifications (ignores ones from banned users)."""
     return int(query("""SELECT COUNT(*) AS n FROM notifications n LEFT JOIN users a ON a.id = n.actor_id
                         WHERE n.user_id = %s AND n.read_at IS NULL AND (a.id IS NULL OR a.is_banned = FALSE)""",
                      (user_id,), one=True)['n'])

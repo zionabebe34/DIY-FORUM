@@ -20,6 +20,7 @@ _SELECT = f"""
 
 
 def serialize(r):
+    """Listing row → API dict (prices, status, seller)."""
     return {
         'id': r['id'], 'listing_type': r['listing_type'], 'title': r['title'], 'description': r['description'] or '',
         'category': r['category'], 'condition': r['condition_text'], 'price': r['price'],
@@ -30,6 +31,7 @@ def serialize(r):
 
 
 def get_listing(listing_id):
+    """One listing row with its seller columns, or None."""
     return query(f'{_SELECT} WHERE l.id = %s', (listing_id,), one=True)
 
 
@@ -78,6 +80,7 @@ def list_listings():
 
 
 def _price(form, field, required):
+    """A price field from the form as a whole number (ValueError with a Hebrew message if invalid)."""
     raw = (form.get(field) or '').strip()
     if not raw:
         if required:
@@ -95,6 +98,7 @@ def _price(form, field, required):
 @bp.post('/listings')
 @login_required
 def create_listing():
+    """Publish a marketplace listing (sale or rent) with an optional photo."""
     form = request.form
     listing_type = form.get('listing_type')
     if listing_type not in TYPES:
@@ -138,6 +142,7 @@ def create_listing():
 @bp.delete('/listings/<int:listing_id>')
 @login_required
 def delete_listing(listing_id):
+    """Delete a listing (its seller or a moderator)."""
     row = query('SELECT seller_id FROM listings WHERE id = %s', (listing_id,), one=True)
     if row is None:
         return jsonify({'error': 'המודעה לא נמצאה'}), 404

@@ -29,6 +29,7 @@ MAX_ATTEMPTS = 5
 
 # ── Codes ───────────────────────────────────────────────────────────────────
 def _clean(code):
+    """Normalize a typed code: letters and digits only, lower-case."""
     return ''.join(ch for ch in str(code or '') if ch.isalnum()).lower()
 
 
@@ -58,6 +59,7 @@ def _new_recovery_codes(user_id):
 
 
 def _recovery_left(user_id):
+    """How many unused backup codes the user has."""
     return int(query('SELECT COUNT(*) AS n FROM totp_recovery_codes WHERE user_id = %s AND used_at IS NULL',
                      (user_id,), one=True)['n'])
 
@@ -91,6 +93,7 @@ def start_challenge(user):
 
 @bp.post('/login/2fa')
 def login_second_step():
+    """Login step 2: the authenticator / backup code for a 2FA challenge (5 wrong tries → start over)."""
     data = request.get_json(silent=True) or {}
     challenge = str(data.get('challenge') or '')
     row = query("""SELECT c.id AS challenge_id, c.attempts, u.* FROM login_challenges c JOIN users u ON u.id = c.user_id
@@ -121,6 +124,7 @@ def login_second_step():
 @bp.get('/2fa')
 @login_required
 def status():
+    """Is 2FA on for me, and how many backup codes are left."""
     me = current_user()
     return jsonify({'enabled': bool(me['totp_enabled']),
                     'recovery_codes_left': _recovery_left(me['id']) if me['totp_enabled'] else 0})
@@ -144,6 +148,7 @@ def setup():
 @bp.post('/2fa/enable')
 @login_required
 def enable():
+    """Turn 2FA on once a code from the new secret checks out; returns backup codes, logs out other browsers."""
     me = current_user()
     if me['totp_enabled']:
         return jsonify({'error': 'אימות דו-שלבי כבר פעיל'}), 400
@@ -174,6 +179,7 @@ def _confirm_identity(me, data):
 @bp.post('/2fa/disable')
 @login_required
 def disable():
+    """Turn 2FA off (needs the password + a current code)."""
     me = current_user()
     if not me['totp_enabled']:
         return jsonify({'error': 'אימות דו-שלבי לא פעיל'}), 400
@@ -191,6 +197,7 @@ def disable():
 @bp.post('/2fa/recovery-codes')
 @login_required
 def regenerate_recovery_codes():
+    """New backup codes (needs the password + a current code); the old ones stop working."""
     me = current_user()
     if not me['totp_enabled']:
         return jsonify({'error': 'אימות דו-שלבי לא פעיל'}), 400

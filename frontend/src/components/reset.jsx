@@ -5,6 +5,7 @@ import { Spinner } from './social.jsx';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 
+// The #/reset/<token> page: check the link, then choose and confirm a new password.
 export function ResetPassword({ token, onLogin, onView }) {
   const { user, logout } = useAuth();
   const [status, setStatus] = useState('checking');   // checking | valid | invalid | done

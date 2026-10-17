@@ -60,6 +60,7 @@ ANSWER_FORMAT = ('{"level": "ok" | "warn" | "block", '
 
 
 def _validate(data):
+    """Check the model's verdict JSON and apply the fixed category rules → verdict dict or None."""
     level, category = data.get('level'), data.get('category')
     if not isinstance(data.get('reason', ''), str):
         return None

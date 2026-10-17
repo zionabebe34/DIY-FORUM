@@ -22,6 +22,7 @@ log = logging.getLogger('handyhub.mail')
 
 
 def _build(cfg, to, subject, text, html):
+    """Build the EmailMessage (plain text + optional HTML version)."""
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = cfg['MAIL_FROM'] or cfg['SMTP_USER']
@@ -33,6 +34,7 @@ def _build(cfg, to, subject, text, html):
 
 
 def _send_smtp(cfg, msg):
+    """Send a message through SMTP (STARTTLS); errors are logged, never raised."""
     try:
         with smtplib.SMTP(cfg['SMTP_HOST'], cfg['SMTP_PORT'], timeout=20) as server:
             # certifi's CA bundle: python.org builds on macOS ship without system certificates
@@ -46,6 +48,7 @@ def _send_smtp(cfg, msg):
 
 
 def send_email(to, subject, text, html=None):
+    """Send an email with the MAIL_BACKEND: console / smtp (background thread) / memory / file."""
     cfg = current_app.config
     backend = cfg['MAIL_BACKEND']
     msg = _build(cfg, to, subject, text, html)

@@ -26,6 +26,7 @@ import { useDebounced, useInfiniteScroll, usePaginated } from '../lib/hooks.js';
 //   #/              feed           #/tag/<tag>     feed filtered by hashtag
 //   #/u/<username>  profile        #/market  #/stores  #/store/<id>   #/admin (staff)
 //   #/post/<id>     a single post with its comments (from notifications / saved items)
+// location.hash → { view, param }: which page to show.
 function parseHash() {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   switch (parts[0]) {
@@ -41,6 +42,7 @@ function parseHash() {
   }
 }
 
+// { view, param } → its #/… address (the reverse of parseHash).
 function hashFor(view, param) {
   const enc = encodeURIComponent;
   if (view === 'profile') return `#/u/${enc(param)}`;
@@ -54,6 +56,7 @@ function hashFor(view, param) {
   return '#/';
 }
 
+// The current route + navigate(view, param), kept in sync with the address bar.
 function useHashRoute() {
   const [route, setRoute] = useState(parseHash);
   useEffect(() => {
@@ -70,6 +73,7 @@ function useHashRoute() {
 }
 
 // ====================== NAVBAR ==============================================
+// Sticky top bar: logo, live search (people / posts / tags), page links, messages, notifications, profile menu.
 function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNotifications, onOpenSaved, onOpenProfile, onOpenSettings, onOpenSecurity, onPickTag, unreadMessages, unreadNotifications }) {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -249,6 +253,7 @@ function Navbar({ view, onView, onSign, onMobileMenu, onOpenMessages, onOpenNoti
   );
 }
 
+// A section title in the search results dropdown.
 function SearchHeader({ icon, label }) {
   return (
     <div className="px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 inline-flex items-center gap-1.5 w-full">
@@ -257,6 +262,7 @@ function SearchHeader({ icon, label }) {
   );
 }
 
+// A navbar page button (feed / market / stores …), dark when active.
 function NavLink({ active, onClick, icon, label }) {
   return (
     <button onClick={onClick}
@@ -268,6 +274,7 @@ function NavLink({ active, onClick, icon, label }) {
 }
 
 // ====================== COMPOSER STUB (opens modal) =========================
+// The "what did you build today?" box on top of the feed; opens the post composer.
 function Composer({ onOpenComposer }) {
   const { user } = useAuth();
   return (
@@ -298,6 +305,7 @@ function Composer({ onOpenComposer }) {
   );
 }
 
+// A shortcut button in that box (photo / tutorial / sell a tool).
 function ComposerBtn({ icon, label, accent, onClick }) {
   return (
     <button onClick={onClick}
@@ -309,6 +317,7 @@ function ComposerBtn({ icon, label, accent, onClick }) {
 }
 
 // ====================== SINGLE POST ==========================================
+// The #/post/<id> page: one post with its comments open.
 function SinglePost({ postId, onOpenProfile, onPickTag, onView }) {
   const [post, setPost] = useState(null);
   const [error, setError] = useState(null);
@@ -332,6 +341,7 @@ function SinglePost({ postId, onOpenProfile, onPickTag, onView }) {
 }
 
 // ====================== FEED =================================================
+// The home feed: global / following tabs, hashtag filter, infinite scroll and the marketplace teaser.
 function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, tagFilter, onClearTag, onContact, onView }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('global');
@@ -416,6 +426,7 @@ function Feed({ onSign, onOpenComposer, onOpenProfile, onPickTag, createdPosts, 
   );
 }
 
+// A feed tab button (global / following).
 function FeedTab({ active, onClick, icon, label }) {
   return (
     <button onClick={onClick} role="tab" aria-selected={active}
@@ -434,6 +445,7 @@ const OAUTH_ERRORS = {
 };
 
 // ====================== AUTH MODAL ==========================================
+// The login / signup / forgot-password / 2FA-code dialog (+ Login with Google).
 function AuthModal({ initialMode = 'signup', initialChallenge = null, initialError = '', onClose }) {
   const { login, loginWithCode, signup } = useAuth();
   const [mode, setMode] = useState(initialChallenge ? 'twofa' : initialMode);      // signup | login | forgot | twofa
@@ -599,6 +611,7 @@ function AuthModal({ initialMode = 'signup', initialChallenge = null, initialErr
   );
 }
 
+// A labeled text input for the auth forms.
 function Field({ label, className = '', ...rest }) {
   return (
     <label className="block">
@@ -609,6 +622,7 @@ function Field({ label, className = '', ...rest }) {
 }
 
 // ====================== MOBILE DRAWER =======================================
+// The phone / tablet side menu: page links, notifications, messages, saved and the sidebar boxes.
 function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotifications, onOpenSaved,
                        onOpenProfile, onPickTag, onSign, unreadMessages, unreadNotifications }) {
   const { user } = useAuth();
@@ -647,6 +661,7 @@ function MobileDrawer({ open, onClose, view, onView, onOpenMessages, onOpenNotif
   );
 }
 
+// A row in the mobile menu (with an optional unread badge).
 function DrawerLink({ active, onClick, icon, label, badge }) {
   return (
     <button onClick={onClick}
@@ -660,6 +675,7 @@ function DrawerLink({ active, onClick, icon, label, badge }) {
 }
 
 // ====================== APP =================================================
+// The root component: routing, navbar, the current page and every modal / side panel.
 export function App() {
   const { user, ready } = useAuth();
   const [route, navigate] = useHashRoute();

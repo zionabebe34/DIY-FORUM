@@ -23,6 +23,7 @@ UNAVAILABLE = 'העוזר החכם לא זמין כרגע — נסו שוב בע
 
 
 def _quota_error(user_id):
+    """A 429 response when the user used up their writing-assistant calls for this hour, else None."""
     used = query("""SELECT COUNT(*) AS n FROM ai_calls WHERE user_id = %s AND feature LIKE 'assist_%%'
                     AND created_at >= UTC_TIMESTAMP() - INTERVAL 1 HOUR""", (user_id,), one=True)['n']
     if used >= current_app.config['AI_ASSIST_PER_HOUR']:
@@ -31,10 +32,12 @@ def _quota_error(user_id):
 
 
 def _unavailable():
+    """A 503 response: the AI is unavailable (or the daily-quota message)."""
     return jsonify({'error': ai.quota_message() if ai.quota_exhausted() else UNAVAILABLE}), 503
 
 
 def _writer(me):
+    """One line about the user (name, skills) so the suggestions fit their voice."""
     skills = ', '.join(parse_json_list(me.get('skills'))) or 'general DIY'
     return f"The user is {me['name']} (@{me['username']}), a member of HandyHub. Their skills: {skills}."
 
@@ -138,6 +141,7 @@ def apply_fixes(html, text, fixes):
 @bp.post('/correct')
 @login_required
 def correct():
+    """Proofread a post's HTML: rule-based Hebrew fixes + the model's fixes, formatting kept."""
     me = current_user()
     html = sanitize_html((request.get_json(silent=True) or {}).get('html', ''))
     text = html_to_text(html)
@@ -177,6 +181,7 @@ hobbyist would really say. Add 1–3 short Hebrew tags to each draft (no '#').""
 @bp.post('/suggest-post')
 @login_required
 def suggest_post():
+    """3 AI draft posts (project / question / tip) with [placeholders] and tags."""
     me = current_user()
     topic = str((request.get_json(silent=True) or {}).get('topic') or '').strip()[:120]
     limited = _quota_error(me['id'])
@@ -220,6 +225,7 @@ Return only the comment text itself — don't start with a name or "Name:"."""
 @bp.post('/suggest-comments')
 @login_required
 def suggest_comments():
+    """3 AI comment suggestions for a post or a reply, based on the thread."""
     me = current_user()
     data = request.get_json(silent=True) or {}
     post = query("""SELECT p.id, p.title, p.body_html, u.name FROM posts p JOIN users u ON u.id = p.author_id

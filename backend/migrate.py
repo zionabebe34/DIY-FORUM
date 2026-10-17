@@ -28,10 +28,12 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 
 class MigrationError(RuntimeError):
+    """A migration statement failed, or another process holds the migrations lock."""
     pass
 
 
 def connect(database=None):
+    """A MySQL connection from the DB_* env settings (database=None → server level, no database selected)."""
     return mysql.connector.connect(
         host=os.getenv('DB_HOST', 'localhost'), port=int(os.getenv('DB_PORT', '3306')),
         user=os.getenv('DB_USER', 'root'), password=os.getenv('DB_PASSWORD', ''),
@@ -52,6 +54,7 @@ def statements(path):
 
 
 def _exists(cur, db_name, table, column=None, index=None):
+    """True if the table (or its column / index) exists in `db_name`."""
     if index:
         cur.execute('SELECT 1 FROM information_schema.statistics WHERE table_schema = %s AND table_name = %s '
                     'AND index_name = %s LIMIT 1', (db_name, table, index))
@@ -157,6 +160,7 @@ def status(db_name, directory=MIGRATIONS_DIR):
 
 
 def drop_database(db_name):
+    """Drop the whole database (./start.sh --reset)."""
     conn = connect()
     conn.cursor().execute(f'DROP DATABASE IF EXISTS `{db_name}`')
     conn.close()

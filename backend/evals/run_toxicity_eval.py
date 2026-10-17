@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+    """Run the toxicity check on every labeled case; print the accuracy and save a JSON report in results/."""
     with open(os.path.join(HERE, 'toxicity_cases.json'), encoding='utf-8') as f:
         cases = json.load(f)
     app = create_app()

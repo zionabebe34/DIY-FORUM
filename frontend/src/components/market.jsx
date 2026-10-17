@@ -27,6 +27,7 @@ export function inquiryText(item) {
 }
 
 // --- Marketplace grid (full page) -------------------------------------------
+// The #/market page: sale / lend and category filters, a listing grid with infinite scroll, a sell button.
 export function Marketplace({ onOpenProfile, onOpenComposer, onSign, onContact, refreshKey }) {
   const { user } = useAuth();
   const [category, setCategory] = useState('all');
@@ -117,6 +118,7 @@ export function Marketplace({ onOpenProfile, onOpenComposer, onSign, onContact, 
 }
 
 // --- Marketplace teaser (inside feed) ---------------------------------------
+// A strip of the newest listings inside the feed, with a link to the marketplace.
 export function MarketplaceTeaser({ onOpenProfile, onContact, onView }) {
   const [items, setItems] = useState(null);
   useEffect(() => {
@@ -142,6 +144,7 @@ export function MarketplaceTeaser({ onOpenProfile, onContact, onView }) {
   );
 }
 
+// A listing card: photo, price, seller, save, buy / borrow (opens a chat), delete for its owner / staff.
 export function MarketCard({ item, compact, onOpenProfile, onContact, onDeleted }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);

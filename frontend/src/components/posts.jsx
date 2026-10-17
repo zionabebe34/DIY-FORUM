@@ -30,6 +30,7 @@ function useAgo(post) {
   return AN.timeAgoCasual(minutes);
 }
 
+// The ⋯ menu on a post: message the author, report, delete (author / staff).
 function PostMenu({ post, onDeleted, dark }) {
   const { user } = useAuth();
   const [open, setOpen] = useStateP(false);
@@ -93,6 +94,7 @@ function PostMenu({ post, onDeleted, dark }) {
   );
 }
 
+// A post's top row: author avatar + name, location, time and the ⋯ menu.
 function PostHeader({ post, kind, onOpenProfile, onDeleted }) {
   const { author, location } = post;
   const ago = useAgo(post);
@@ -189,6 +191,7 @@ function PostFooter({ post, onOpenProfile, openComments }) {
   );
 }
 
+// A button in the post's action bar.
 function ActionBtn({ icon, label, onClick, active, activeColor = 'text-slate-700', hideLabelOnMobile, title }) {
   return (
     <button onClick={onClick} title={title} aria-pressed={active ? true : undefined}
@@ -200,6 +203,7 @@ function ActionBtn({ icon, label, onClick, active, activeColor = 'text-slate-700
   );
 }
 
+// The post's hashtags; a click filters the feed by that tag.
 function TagRow({ tags, onPickTag }) {
   if (!tags?.length) return null;
   return (
@@ -285,6 +289,7 @@ function SharedPostEmbed({ original, missing, className = 'mx-4 mb-3' }) {
   return <SharedPostPreview original={original} className={className} />;
 }
 
+// The clickable preview card of the shared post (opens #/post/<id>).
 function SharedPostPreview({ original, className }) {
   const ago = useAgo(original);
   const open = (e) => {

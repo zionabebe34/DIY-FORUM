@@ -18,6 +18,7 @@ ROLE_RANK = {'user': 0, 'moderator': 1, 'admin': 2}
 @bp.post('/reports')
 @login_required
 def create_report():
+    """Report a post / comment / user (one open report per reporter and target)."""
     me = current_user()
     data = request.get_json(silent=True) or {}
     target_type = data.get('target_type')
@@ -54,6 +55,7 @@ def create_report():
 @bp.get('/admin/stats')
 @moderator_required
 def stats():
+    """Admin dashboard numbers: open reports / cases, users, banned users, posts, comments."""
     row = query("""SELECT
         (SELECT COUNT(*) FROM reports WHERE status = 'open') AS open_reports,
         (SELECT COUNT(DISTINCT target_type, target_id) FROM reports WHERE status = 'open') AS open_cases,
@@ -65,6 +67,7 @@ def stats():
 
 
 def _user_brief(row, prefix):
+    """User columns selected with a prefix → a small user dict (None if there is none)."""
     if row[f'{prefix}_id'] is None:
         return None
     return {'id': row[f'{prefix}_id'], 'username': row[f'{prefix}_username'], 'name': row[f'{prefix}_name'],
@@ -147,6 +150,7 @@ def dismiss_case():
 
 # ── Users: search, ban / unban, roles ───────────────────────────────────────
 def _target_user(username):
+    """The user row of a username, or None."""
     return query('SELECT * FROM users WHERE username = %s', (username,), one=True)
 
 
@@ -160,6 +164,7 @@ def _can_act_on(me, target):
 @bp.get('/admin/users')
 @moderator_required
 def admin_users():
+    """Admin user list: search name / username / email, filter all / banned / staff, most reported first."""
     q = (request.args.get('q') or '').strip().lstrip('@')
     filt = request.args.get('filter', 'all')
     clauses, params = [], []
@@ -186,6 +191,7 @@ def admin_users():
 @bp.post('/admin/users/<username>/ban')
 @moderator_required
 def ban_user(username):
+    """Ban a user: log them out, optionally delete their content, close the reports about them."""
     me = current_user()
     target = _target_user(username)
     if target is None:
@@ -208,6 +214,7 @@ def ban_user(username):
 @bp.post('/admin/users/<username>/unban')
 @moderator_required
 def unban_user(username):
+    """Lift a user's ban."""
     me = current_user()
     target = _target_user(username)
     if target is None:
@@ -222,6 +229,7 @@ def unban_user(username):
 @bp.put('/admin/users/<username>/role')
 @moderator_required
 def set_role(username):
+    """Change a user's role (admins only, never their own)."""
     me = current_user()
     if not is_admin(me):
         return jsonify({'error': 'רק מנהל ראשי יכול לשנות תפקידים'}), 403

@@ -12,9 +12,11 @@ import { useDebounced } from '../lib/hooks.js';
 
 const THREAD_POLL_MS = 4000;
 const LIST_POLL_MS = 8000;
+// ISO date → a casual Hebrew time-ago label.
 const ago = (iso) => AN.timeAgoCasual(minutesSince(iso));
 
 /**
+ * Private messages panel: the conversation list, a chat thread and new chats (polls for new messages).
  * `initial` (optional): { username, draft?, listing? } — open straight into a chat
  * with this person, e.g. from a profile ("הודעה") or a marketplace listing ("קנה עכשיו").
  */
@@ -232,6 +234,7 @@ function MessagesPanel({ open, onClose, initial, onUnreadChange }) {
 }
 
 // ----- Thread view ----------------------------------------------------------
+// An open chat: header with the other person, the messages, an attached listing and the send box.
 function ThreadView({ thread, draft, setDraft, listing, clearListing, send, scrollRef, onBack, onClose, showBack, error }) {
   if (!thread) {
     return <div className="flex-1 grid place-items-center text-sm text-slate-500">{error || 'טוען שיחה…'}</div>;
@@ -309,15 +312,18 @@ function ThreadView({ thread, draft, setDraft, listing, clearListing, send, scro
   );
 }
 
+// Small photo (or color block) of the listing a message is about.
 function ListingThumb({ listing }) {
   return listing.image
     ? <img src={listing.image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
     : <div className={"w-10 h-10 rounded-lg shrink-0 " + (listing.bg || 'ph-steel')}></div>;
 }
 
+// A listing's price text (per day when it's for lending).
 const listingPrice = (l) => l.listingType === 'lend' ? `${HUB_DATA.NIS(l.dailyPrice)} ליום` : HUB_DATA.NIS(l.price);
 
 // ----- New message compose --------------------------------------------------
+// Start a new chat: search a person (suggestions when empty) and write the first message.
 function NewMessageCompose({ me, onCancel, onStart, error }) {
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(null);
@@ -426,6 +432,7 @@ function NewMessageCompose({ me, onCancel, onStart, error }) {
   );
 }
 
+// One message bubble (mine / theirs), with the listing it's about.
 function ChatBubble({ message, person, prev }) {
   const isMe = message.from === 'me';
   const showAvatar = !isMe && (!prev || prev.from !== message.from);

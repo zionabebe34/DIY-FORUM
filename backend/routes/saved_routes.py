@@ -13,6 +13,7 @@ MAX_SAVED = 100
 
 
 def _saves_count(post_id):
+    """How many users saved this post."""
     return int(query('SELECT COUNT(*) AS n FROM saved_posts WHERE post_id = %s', (post_id,), one=True)['n'])
 
 
@@ -20,6 +21,7 @@ def _saves_count(post_id):
 @bp.post('/posts/<int:post_id>/save')
 @login_required
 def save_post(post_id):
+    """Save a post (idempotent); a new save notifies its author."""
     post = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
     if post is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
@@ -35,6 +37,7 @@ def save_post(post_id):
 @bp.delete('/posts/<int:post_id>/save')
 @login_required
 def unsave_post(post_id):
+    """Unsave a post and remove its notification."""
     post = query('SELECT author_id FROM posts WHERE id = %s', (post_id,), one=True)
     if post is None:
         return jsonify({'error': 'הפוסט לא נמצא'}), 404
@@ -49,6 +52,7 @@ def unsave_post(post_id):
 @bp.post('/listings/<int:listing_id>/save')
 @login_required
 def save_listing(listing_id):
+    """Save a marketplace listing."""
     if query('SELECT id FROM listings WHERE id = %s', (listing_id,), one=True) is None:
         return jsonify({'error': 'המודעה לא נמצאה'}), 404
     execute('INSERT IGNORE INTO saved_listings (user_id, listing_id) VALUES (%s, %s)',
@@ -60,6 +64,7 @@ def save_listing(listing_id):
 @bp.delete('/listings/<int:listing_id>/save')
 @login_required
 def unsave_listing(listing_id):
+    """Unsave a marketplace listing."""
     execute('DELETE FROM saved_listings WHERE user_id = %s AND listing_id = %s', (current_user()['id'], listing_id))
     commit()
     return jsonify({'saved': False})

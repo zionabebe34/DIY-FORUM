@@ -99,6 +99,7 @@ function ImageReveal({ className = '', overlay, children, height }) {
 }
 
 // ── Time formatter (casual, Facebook-ish) ──────────────────────────────────
+// Minutes → a short casual Hebrew time-ago label (now, minutes, hours, yesterday … years).
 function timeAgoCasual(min) {
   if (min < 1) return 'עכשיו';
   if (min < 60) return `לפני ${min} דק׳`;

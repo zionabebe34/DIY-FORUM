@@ -5,6 +5,7 @@ const AV_COLORS = [
   ['#7c2d12', '#fde68a'], ['#475569', '#e2e8f0'], ['#86198f', '#f5d0fe'],
   ['#15803d', '#bbf7d0'], ['#b91c1c', '#fecaca'],
 ];
+// A generated avatar (colored SVG with initials) for a username — used when there is no photo.
 function avatarDataURI(seed) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -21,6 +22,7 @@ function avatarDataURI(seed) {
 }
 
 // ---- Time-ago helper (Hebrew) -----------------------------------------------
+// Minutes → a Hebrew time-ago label.
 function timeAgo(minutesAgo) {
   if (minutesAgo < 1) return 'הרגע';
   if (minutesAgo < 60) return `לפני ${minutesAgo} דק׳`;
@@ -34,6 +36,7 @@ function timeAgo(minutesAgo) {
 }
 
 // ---- Shekel formatter -------------------------------------------------------
+// A number → a shekel price (₪1,200).
 const NIS = (n) => '₪' + n.toLocaleString('he-IL');
 
 // ---- People (Hebrew) --------------------------------------------------------

@@ -10,6 +10,7 @@ _pools = {}
 
 
 def _pool():
+    """The MySQL connection pool of the configured database (created once per DB)."""
     cfg = current_app.config
     key = (cfg['DB_HOST'], cfg['DB_PORT'], cfg['DB_NAME'])
     if key not in _pools:
@@ -31,12 +32,14 @@ def _pool():
 
 
 def get_db():
+    """This request's DB connection (taken from the pool on first use)."""
     if 'db' not in g:
         g.db = _pool().get_connection()
     return g.db
 
 
 def close_db(exception=None):
+    """Return the request's connection to the pool (rolled back if the request failed)."""
     db = g.pop('db', None)
     if db is not None:
         if exception is not None:
@@ -63,4 +66,5 @@ def execute(sql, params=()):
 
 
 def commit():
+    """Commit the current request's transaction."""
     get_db().commit()

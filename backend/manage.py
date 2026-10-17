@@ -13,6 +13,7 @@ ROLES = ('user', 'moderator', 'admin')
 
 
 def main(argv=None):
+    """CLI: `set-role <user> <role>` or `unban <user>`. Returns the exit code."""
     parser = argparse.ArgumentParser(description='HandyHub admin commands')
     sub = parser.add_subparsers(dest='command', required=True)
     p_role = sub.add_parser('set-role', help="change a user's role")
@@ -42,6 +43,7 @@ def main(argv=None):
 
 
 def _exists(cur, username):
+    """True if a user with this username exists."""
     cur.execute('SELECT 1 FROM users WHERE username = %s', (username,))
     return bool(cur.fetchall())
 

@@ -51,11 +51,13 @@ _LEAK = re.compile(r'user_content|community rules|your task now|answer with one 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 def _day_start_utc():
+    """Midnight of today (Israel time) as naive UTC — when the agents' daily quotas reset."""
     start = datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0)
     return start.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def used_today(agent_id, actions):
+    """How many of these `actions` the agent completed today (for the daily quotas)."""
     marks = ', '.join(['%s'] * len(actions))
     return int(query(f"""SELECT COUNT(*) AS n FROM agent_actions WHERE agent_id = %s AND status = 'done'
                          AND action IN ({marks}) AND created_at >= %s""",
@@ -63,6 +65,7 @@ def used_today(agent_id, actions):
 
 
 def log_action(agent, action, status, target_id=None, result_id=None, detail=None):
+    """Record an agent action in agent_actions; returns a one-line summary for the log."""
     execute("""INSERT INTO agent_actions (agent_id, action, status, target_id, result_id, detail)
                VALUES (%s, %s, %s, %s, %s, %s)""",
             (agent['id'], action, status, target_id, result_id, (detail or '')[:300] or None))
@@ -82,6 +85,7 @@ def clean_text(text, min_len, max_len):
 
 
 def to_html(text):
+    """Plain text → simple HTML paragraphs (blank line = new <p>, newline = <br>)."""
     return ''.join(f'<p>{html.escape(p.strip()).replace(chr(10), "<br>")}</p>' for p in text.split('\n\n') if p.strip())
 
 
@@ -118,9 +122,11 @@ class AgentClient:
     """Use the site's HTTP API as the agent (a short-lived session, deleted afterwards)."""
 
     def __init__(self, app, agent):
+        """Remember the Flask app and the agent row."""
         self.app, self.agent = app, agent
 
     def __enter__(self):
+        """Open a session for the agent and a test client that sends its cookie."""
         self.token = create_session(self.agent['id'])
         commit()
         self.client = self.app.test_client()
@@ -128,10 +134,12 @@ class AgentClient:
         return self
 
     def __exit__(self, *exc):
+        """Delete the agent's session."""
         execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(self.token),))
         commit()
 
     def call(self, method, path, **kwargs):
+        """Send one API request as the agent → (status code, JSON body)."""
         # The request runs inside our app context and shares its `g`: forget any user cached there
         # by an earlier request, or this one would act as that user instead of this agent.
         g.pop('user', None)
@@ -141,10 +149,12 @@ class AgentClient:
 
 
 def _thread_text(rows):
+    """Comment rows → 'Name (AI): text' lines for the model's prompt."""
     return '\n'.join(f"{r['name']}{' (AI)' if r['is_agent'] else ''}: {r['body'][:300]}" for r in rows)
 
 
 def _post_text(post_id):
+    """A post's row + a short 'Name (@user) wrote: …' text for the model (None, None if it's gone)."""
     row = query("""SELECT p.id, p.title, p.body_html, p.author_id, u.name, u.username, u.is_agent
                    FROM posts p JOIN users u ON u.id = p.author_id WHERE p.id = %s AND u.is_banned = FALSE""",
                 (post_id,), one=True)
@@ -155,6 +165,7 @@ def _post_text(post_id):
 
 
 def _validate_reply(key, min_len=2, max_len=400):
+    """A validator for a model answer → {'skip': True}, {'text': the cleaned `key`} or None."""
     def validate(obj):
         if obj.get('skip') is True:
             return {'skip': True}
@@ -247,6 +258,7 @@ def respond_to_notification(app, agent):
 
 
 def _publish_comment(app, agent, action, post_id, parent_id, result, target_id):
+    """Toxicity-check the model's answer, post it as a comment / reply through the API and log it."""
     if result is None:
         return log_action(agent, action, 'failed', target_id, detail='no usable answer')
     if result.get('skip'):
@@ -263,6 +275,7 @@ def _publish_comment(app, agent, action, post_id, parent_id, result, target_id):
 
 # ── New activity ────────────────────────────────────────────────────────────
 def write_post(app, agent, rng):
+    """Write a new feed post in the agent's voice (no near-duplicates; price_watch quotes real listings)."""
     if used_today(agent['id'], ['post']) >= app.config['AGENT_MAX_POSTS']:
         return None
     persona = BY_USERNAME.get(agent['username'], {})
@@ -333,6 +346,7 @@ def comment_on_post(app, agent, rng):
 
 
 def like_something(app, agent, rng):
+    """Like a random recent post the agent hasn't liked yet."""
     if used_today(agent['id'], ['like']) >= MAX_LIKES:
         return None
     rows = query("""SELECT p.id FROM posts p JOIN users u ON u.id = p.author_id
@@ -369,6 +383,7 @@ def follow_someone(app, agent, rng):
 
 # ── A round ─────────────────────────────────────────────────────────────────
 def active_agents():
+    """Agent accounts that are not banned and have a persona in agent_personas.py."""
     rows = query("SELECT * FROM users WHERE is_agent = TRUE AND is_banned = FALSE ORDER BY id")
     return [r for r in rows if r['username'] in BY_USERNAME and r['personality']]
 
@@ -415,6 +430,7 @@ def tick(app, force=False, rng=random, responses_only=False):
 
 
 def main(argv=None):
+    """CLI: `tick` runs one round; `run` loops (answers every ~30 s, full rounds every AGENT_TICK_SECONDS)."""
     from app import create_app
     parser = argparse.ArgumentParser(description='Run the HandyHub AI agents.')
     parser.add_argument('command', choices=['tick', 'run'])

@@ -9,6 +9,7 @@ import { useSaved, SAVED_EVENT } from '../lib/saved.js';
 // Notifications + Saved side panels (Hebrew)
 const { useState: useStateN, useEffect: useEffectN } = React;
 
+// A slide-in side panel shell: title, close on Esc or a click outside.
 function SidePanel({ open, onClose, title, subtitle, icon, children }) {
   useEffectN(() => {
     if (!open) return;
@@ -56,6 +57,7 @@ const NOTIF_META = {
 };
 const QUOTED = new Set(['comment', 'reply', 'mention', 'share']);   // show their words, not the post title
 
+// The notifications panel: all / unread / mentions, load more, mark read, click → open the post / profile.
 function NotificationsPanel({ open, onClose, onOpenPost, onOpenProfile, onUnreadChange }) {
   const [filter, setFilter] = useStateN('all');
   const [items, setItems] = useStateN([]);
@@ -229,6 +231,7 @@ function SavedPanel({ open, onClose, onOpenPost, onContact }) {
   );
 }
 
+// Empty state of a saved tab.
 function SavedEmpty({ text }) {
   return (
     <div className="px-6 py-12 text-center text-sm text-slate-500">
@@ -238,6 +241,7 @@ function SavedEmpty({ text }) {
   );
 }
 
+// A saved post row: thumbnail and title (opens it), remove from saved.
 function SavedPostRow({ post: p, onOpen }) {
   const [, toggleSave] = useSaved('post', p.id, true);
   const label = p.title || htmlText(p.bodyHtml) || 'פרויקט שמור';
@@ -270,6 +274,7 @@ function SavedPostRow({ post: p, onOpen }) {
   );
 }
 
+// A saved listing row: photo, price, remove, buy / borrow (opens a chat).
 function SavedToolRow({ item, onContact }) {
   const [, toggleSave] = useSaved('listing', item.id, true);
   const isLend = item.listingType === 'lend';
@@ -300,8 +305,10 @@ function SavedToolRow({ item, onContact }) {
   );
 }
 
+// HTML → plain text (for row titles).
 const htmlText = (html) => (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
+// A tab button (posts / tools) with its count.
 function SavedTab({ active, onClick, icon, label, count }) {
   return (
     <button onClick={onClick}

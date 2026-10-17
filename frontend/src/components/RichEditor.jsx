@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
 import { I } from './icons.jsx';
 
+// TipTap rich-text editor with a toolbar (bold / italic / underline / link / list) — the composer's body.
 // `content` + `contentKey`: replace the whole text from outside (e.g. an accepted AI correction) whenever
 // contentKey changes; the change is reported through onChange like typing.
 export function RichEditor({ placeholder, onChange, resetKey, minHeight = '6rem', content, contentKey }) {
@@ -99,6 +100,7 @@ export function RichEditor({ placeholder, onChange, resetKey, minHeight = '6rem'
   );
 }
 
+// A toolbar button (keeps the editor's selection when clicked).
 function ToolBtn({ on, title, onClick, children }) {
   return (
     <button type="button" title={title} aria-label={title} aria-pressed={!!on}
