@@ -1,3 +1,4 @@
+import json
 import re
 import smtplib
 
@@ -158,3 +159,14 @@ def test_smtp_backend(make_user, client, app, monkeypatch, capsys, fail):
     assert FakeSMTP.sent == ([] if fail else [('smtp.gmail.com', 587, 'me@gmail.com', 'alice@example.com')])
     out = capsys.readouterr().out
     assert ('[mail] FAILED to send to alice@example.com' in out) if fail else ('[mail] sent to alice@example.com' in out)
+
+
+def test_file_mail_backend(app, client, make_user, tmp_path):
+    """MAIL_BACKEND=file writes the email (with the reset link) as a JSON file — the end-to-end tests read it."""
+    make_user('alice')
+    app.config.update(MAIL_BACKEND='file', MAIL_FILE_DIR=str(tmp_path / 'outbox'), APP_URL='https://handyhub.test')
+    client.post('/api/auth/forgot', json={'email': 'alice@example.com'})
+    files = list((tmp_path / 'outbox').glob('*.json'))
+    assert len(files) == 1
+    mail = json.loads(files[0].read_text(encoding='utf-8'))
+    assert mail['to'] == 'alice@example.com' and 'https://handyhub.test/#/reset/' in mail['text']

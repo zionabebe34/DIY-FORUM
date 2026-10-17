@@ -4,9 +4,13 @@ MAIL_BACKEND selects how mail is delivered:
   console  (default) — print the message to the server log; nothing leaves the machine
   smtp               — send through an SMTP server (Gmail: smtp.gmail.com:587 + an app password)
   memory             — keep messages in app.config['MAIL_OUTBOX'] (tests)
+  file               — write each message as a small JSON file into MAIL_FILE_DIR (end-to-end tests read the links)
 """
+import json
 import logging
+import os
 import smtplib
+import time
 import ssl
 import threading
 from email.message import EmailMessage
@@ -47,6 +51,11 @@ def send_email(to, subject, text, html=None):
     msg = _build(cfg, to, subject, text, html)
     if backend == 'memory':
         cfg.setdefault('MAIL_OUTBOX', []).append(msg)
+    elif backend == 'file':
+        os.makedirs(cfg['MAIL_FILE_DIR'], exist_ok=True)
+        path = os.path.join(cfg['MAIL_FILE_DIR'], f'{time.time_ns()}.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump({'to': to, 'subject': subject, 'text': text}, f, ensure_ascii=False)
     elif backend == 'smtp':
         # Send in the background: the request returns at the same speed whether or
         # not an email is sent, so response timing can't reveal registered addresses.

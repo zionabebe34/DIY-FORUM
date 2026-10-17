@@ -29,6 +29,7 @@ def create_app(overrides=None):
         APP_URL=os.getenv('APP_URL', 'http://localhost:5173').rstrip('/'),   # used in emailed links
         MAIL_BACKEND=os.getenv('MAIL_BACKEND', 'console'),
         MAIL_FROM=os.getenv('MAIL_FROM', ''),
+        MAIL_FILE_DIR=os.getenv('MAIL_FILE_DIR', os.path.join(BASE_DIR, 'mail_outbox')),   # MAIL_BACKEND=file
         SMTP_HOST=os.getenv('SMTP_HOST', 'smtp.gmail.com'),
         SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
         SMTP_USER=os.getenv('SMTP_USER', ''),

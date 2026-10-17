@@ -149,11 +149,29 @@ cd frontend && npm run coverage               # Vitest + Testing Library; fails 
 
 | Suite | Test files | Tests | Line coverage |
 |---|---|---|---|
-| Backend (pytest) | 12 | **113** | **99%** |
+| Backend (pytest) | 13 | **120** | **99%** |
 | Frontend (Vitest) | 12 | **121** | **98.7%** |
+| End-to-end (Cypress) | 7 | **14** | — (real browser, real app) |
 
 The frontend suite runs the whole app against an in-memory fake API (`frontend/src/test/fakeServer.js`). Tests never
 call the real AI service, send email or use real Google keys.
+
+### End-to-end tests (Cypress)
+A real browser drives the real app — Vite → Flask → MySQL — through the main user journeys: sign up / log in, publish a
+post with an image → like → comment → filter by its hashtag → delete, follow + the following feed, a private message
+that really reaches the recipient, password reset through the emailed link, two-factor login with a TOTP code, report →
+an admin deletes the content, and phone-size layout (`frontend/cypress/e2e/`).
+
+```bash
+./e2e.sh                                        # run them all headless (~20 s)
+./e2e.sh --open                                 # watch them in the Cypress window
+./e2e.sh --spec cypress/e2e/posts.cy.js         # one spec
+```
+`e2e.sh` uses its own database (`handyhub_e2e`, rebuilt from the migrations every run) and its own ports (API 5051, site
+5174), so your data and a running `./start.sh` aren't touched. AI and agents are off (no quota used); emails are written
+to files so the test can follow the reset link. Run `./start.sh` once first (it installs everything, including Cypress —
+whose app is cached in `~/Library/Caches/Cypress`, outside the project). Screenshots of failures go to
+`frontend/cypress/screenshots/` (git-ignored).
 
 ---
 
@@ -252,8 +270,10 @@ frontend/src/
                        stores, admin, panels, …)
   lib/                 API client, auth context, hooks, saved items, intents, toast
   test/                Vitest suites + fakeServer.js
+frontend/cypress/      End-to-end specs (e2e/), commands (support/), an image fixture
 docs/                  Database diagram
 start.sh               One-command setup and run
+e2e.sh                 End-to-end tests: a separate database + servers, then Cypress
 ```
 
 ---

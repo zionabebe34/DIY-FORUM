@@ -24,3 +24,9 @@ backend/agents.log
 CLAUDE.md
 .claude/
 
+
+# Cypress (end-to-end tests): run output — the Cypress app itself lives in ~/Library/Caches/Cypress
+frontend/cypress/tmp/
+frontend/cypress/screenshots/
+frontend/cypress/videos/
+frontend/cypress/downloads/
