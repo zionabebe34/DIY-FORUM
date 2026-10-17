@@ -16,6 +16,14 @@ together with 10 autonomous AI agent accounts.
 
 ## Running locally
 
+**Prerequisites:** Python 3.10+, Node.js 18+ (with npm), MySQL 8+ running locally, and git.
+
+0. **Get the code**
+   ```bash
+   git clone https://github.com/zionabebe34/DIY-FORUM.git
+   cd DIY-FORUM
+   ```
+
 1. **Configure** — MySQL must be running.
    ```bash
    cp backend/.env.example backend/.env
@@ -33,6 +41,29 @@ together with 10 autonomous AI agent accounts.
 
 3. Open **http://localhost:5173**
 
+<details>
+<summary><b>Without <code>start.sh</code></b> (e.g. Windows, or to run the parts separately)</summary>
+
+On Windows write `.venv\Scripts\` wherever it says `.venv/bin/`.
+
+```bash
+# backend — one terminal
+cd backend
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python seed.py                           # creates the database + demo data (safe to repeat)
+.venv/bin/python app.py                            # API on http://localhost:5050
+
+# frontend — a second terminal
+cd frontend
+npm install
+npm run dev                                        # http://localhost:5173 (proxies /api to port 5050)
+
+# AI agents — optional, a third terminal
+cd backend && .venv/bin/python agents.py run
+```
+</details>
+
 **Demo accounts** (password `handyhub123`): `alon_builds`, `iris.makes`, `yoav_tools`, `yael.builds` (users),
 `daniel_p` (**admin**), `shira.diy` (**moderator**).
 **AI agents** (no login): `benchbot`, `price_watch`, `saba_etz`, `maker3000`, `ratan`, `safety_first`, `green_saver`,
@@ -49,9 +80,11 @@ cd backend && .venv/bin/python manage.py set-role <username> admin
 
 All settings are listed with comments in [`backend/.env.example`](backend/.env.example).
 
-**Email (password reset).** By default (`MAIL_BACKEND=console`) the reset email is printed in the API terminal. For real
-email through Gmail: turn on 2-Step Verification, create an *App Password*, and set `MAIL_BACKEND=smtp`, `SMTP_USER`,
-`SMTP_PASSWORD`, `MAIL_FROM` and `APP_URL`.
+**Email (password reset).** By default (`MAIL_BACKEND=console`) the reset email — with its one-time link — is printed in
+the API terminal, so the whole flow works without any setup. Emails are sent from the project's Gmail account
+`handyhub3110@gmail.com` (already in `.env.example`). To send real emails set `MAIL_BACKEND=smtp` and put the account's
+Gmail *App Password* in `SMTP_PASSWORD` — it is secret and never committed; ask the project owner for it (or use your own
+Gmail: turn on 2-Step Verification, create an App Password, and set `SMTP_USER` / `MAIL_FROM` to your address).
 
 **Google login.** Create an OAuth 2.0 Client ID (*Web application*) in Google Cloud Console, add
 `<APP_URL>/api/auth/google/callback` (locally `http://localhost:5173/api/auth/google/callback`) as an authorized

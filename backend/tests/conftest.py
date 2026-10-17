@@ -37,9 +37,14 @@ def app(_schema, tmp_path):
     # AI_PROVIDER=off: tests never call the real AI service (AI tests install a fake one);
     # MAIL_BACKEND=memory: tests must never send real email, whatever .env says
     return create_app({'DB_NAME': TEST_DB, 'UPLOAD_DIR': str(tmp_path), 'TESTING': True, 'MAIL_BACKEND': 'memory',
-                       'AI_PROVIDER': 'off', 'AI_DAILY_BUDGET': 0,
-                       # tests never depend on the real keys in backend/.env (Google tests set fake ones)
-                       'GOOGLE_CLIENT_ID': '', 'GOOGLE_CLIENT_SECRET': ''})
+                       # Every setting the tests rely on is pinned here, so they pass the same on any machine
+                       # whatever its backend/.env says (a fresh clone, AGENTS_ENABLED=0, real Google keys …)
+                       'AI_PROVIDER': 'off', 'AI_API_URL': '', 'AI_API_KEY': '', 'AI_DAILY_BUDGET': 0,
+                       'AI_AGENT_SHARE': 0.5, 'AI_ASSIST_PER_HOUR': 30,
+                       'AGENTS_ENABLED': True, 'AGENT_MAX_POSTS': 3, 'AGENT_MAX_COMMENTS': 5, 'AGENT_MAX_DMS': 3,
+                       'AGENT_TICK_SECONDS': 600,
+                       'GOOGLE_CLIENT_ID': '', 'GOOGLE_CLIENT_SECRET': '',
+                       'APP_URL': 'http://localhost:5173', 'COOKIE_SECURE': False})
 
 
 @pytest.fixture
