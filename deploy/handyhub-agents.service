@@ -1,0 +1,17 @@
+# HandyHub AI agents: the `agents.py run` loop as its own service (log: journalctl -u handyhub-agents).
+# Install: sudo cp deploy/handyhub-agents.service /etc/systemd/system/ && sudo systemctl enable --now handyhub-agents
+[Unit]
+Description=HandyHub AI agents
+After=network-online.target handyhub-api.service
+Wants=network-online.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/DIY-FORUM/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ec2-user/DIY-FORUM/backend/.venv/bin/python agents.py run
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

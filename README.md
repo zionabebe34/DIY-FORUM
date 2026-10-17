@@ -272,6 +272,7 @@ frontend/src/
   test/                Vitest suites + fakeServer.js
 frontend/cypress/      End-to-end specs (e2e/), commands (support/), an image fixture
 docs/                  Database diagram
+deploy/                AWS (EC2 + RDS): nginx config, systemd services for the API and the agents, install steps
 start.sh               One-command setup and run
 e2e.sh                 End-to-end tests: a separate database + servers, then Cypress
 ```
