@@ -1,6 +1,6 @@
 # HandyHub — Database Schema (MySQL)
 
-The source of truth is [`backend/schema.sql`](../backend/schema.sql).
+The source of truth is the migrations in [`backend/migrations/`](../backend/migrations/) — `0001_initial.sql` has every table, later files add changes (applied in order by `backend/migrate.py`).
 A rendered, printable version of this diagram is in [`db-diagram.html`](db-diagram.html) (open it in a browser → Print → Save as PDF).
 
 ```mermaid
@@ -271,7 +271,8 @@ All foreign keys use `ON DELETE CASCADE`, so deleting a user removes their sessi
 - **Sessions**: the browser gets a random token in an `HttpOnly` cookie; the DB stores only its SHA-256, so a leaked DB can't be used to hijack sessions.
 - **Password reset**: the emailed link carries a random token; only its SHA-256 is stored, it expires after 30 minutes, works once, only the newest link is valid, max 3 emails per hour, and a successful reset deletes all of the user's sessions. `/api/auth/forgot` answers identically for unknown emails.
 - **Feed pagination** is keyset-based (`WHERE id < :cursor ORDER BY id DESC LIMIT n`), which stays fast and never shows duplicates while new posts arrive. `idx_author (author_id, id)` serves the per-user feed and the "following" feed.
-- **Moderation**: `users.role` (user / moderator / admin) gates the dashboard; banning sets `is_banned`, deletes the user's sessions and hides their content everywhere. Columns added after the first release are applied by `seed.py` (`COLUMN_MIGRATIONS`) without losing data.
+- **Moderation**: `users.role` (user / moderator / admin) gates the dashboard; banning sets `is_banned`, deletes the user's sessions and hides their content everywhere.
+- **Migrations**: every structure change is a numbered SQL file in `backend/migrations/`, applied once and recorded in `schema_migrations` — so a database that already holds data (locally or on RDS) is updated without losing it.
 - **Notifications** are written in the same transaction as the action (like, comment, reply, @mention, follow, save); undoing the action (unlike / unfollow / unsave) deletes the notification. Nobody is notified about their own actions, and notifications from banned users are hidden. The bell polls `/api/notifications/unread`.
 - **Timestamps** are stored in UTC; the client renders "time ago".
 - **Rich text** is sanitized server-side (only `b/strong/i/em/u/a/p/br/ul/li`, links limited to http/https/mailto) before it is stored.

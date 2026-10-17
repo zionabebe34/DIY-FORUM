@@ -1,12 +1,12 @@
--- HandyHub database schema (MySQL 8+)
--- Usually applied by `python seed.py --reset`, which creates the database named
--- in .env and runs this file. Manual alternative:
---   mysql -u root -p -e "CREATE DATABASE handyhub CHARACTER SET utf8mb4"
---   mysql -u root -p handyhub < schema.sql
+-- 0001 — the initial HandyHub schema (MySQL 8+): every table as of the start of migrations.
+--
+-- Migrations are applied in order by `python migrate.py` (also run by seed.py / start.sh, and on the
+-- server at start-up), each exactly once; `schema_migrations` records which ones ran.
+-- Never edit a migration that has already run somewhere — add a new numbered file instead.
 -- All timestamps are stored in UTC (the app sets time_zone='+00:00' per connection).
 
 -- ── Users ──────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   username       VARCHAR(30)  NOT NULL UNIQUE,          -- shown as @handle, searchable
   email          VARCHAR(255) NOT NULL UNIQUE,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ── Login sessions (cookie holds a random token; we store only its SHA-256) ──
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE sessions (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   user_id     INT      NOT NULL,
   token_hash  CHAR(64) NOT NULL UNIQUE,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 -- ── Follow graph (follower → followee) ─────────────────────────────────────
-CREATE TABLE IF NOT EXISTS follows (
+CREATE TABLE follows (
   follower_id  INT      NOT NULL,
   followee_id  INT      NOT NULL,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS follows (
 );
 
 -- ── Posts ──────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS posts (
+CREATE TABLE posts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   author_id   INT          NOT NULL,
   kind        ENUM('project', 'tutorial') NOT NULL DEFAULT 'project',
@@ -67,11 +67,10 @@ CREATE TABLE IF NOT EXISTS posts (
                                                         -- original keeps its id so the share shows "removed")
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_author (author_id, id),
-  INDEX idx_shared (shared_post_id),
   FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS post_images (
+CREATE TABLE post_images (
   id        INT AUTO_INCREMENT PRIMARY KEY,
   post_id   INT          NOT NULL,
   url       VARCHAR(500) NOT NULL,
@@ -80,12 +79,12 @@ CREATE TABLE IF NOT EXISTS post_images (
 );
 
 -- ── Hashtags (many-to-many with posts) ─────────────────────────────────────
-CREATE TABLE IF NOT EXISTS tags (
+CREATE TABLE tags (
   id    INT AUTO_INCREMENT PRIMARY KEY,
   name  VARCHAR(50) NOT NULL UNIQUE                     -- stored without the leading '#'
 );
 
-CREATE TABLE IF NOT EXISTS post_tags (
+CREATE TABLE post_tags (
   post_id  INT NOT NULL,
   tag_id   INT NOT NULL,
   PRIMARY KEY (post_id, tag_id),
@@ -95,7 +94,7 @@ CREATE TABLE IF NOT EXISTS post_tags (
 );
 
 -- ── Likes ("hearts") on posts ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS post_likes (
+CREATE TABLE post_likes (
   user_id     INT      NOT NULL,
   post_id     INT      NOT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -106,7 +105,7 @@ CREATE TABLE IF NOT EXISTS post_likes (
 );
 
 -- ── Comments (one level of nesting: a reply points at a top-level comment) ──
-CREATE TABLE IF NOT EXISTS comments (
+CREATE TABLE comments (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   post_id     INT      NOT NULL,
   author_id   INT      NOT NULL,
@@ -122,7 +121,7 @@ CREATE TABLE IF NOT EXISTS comments (
 -- ── Reports ("flag for review") + moderation outcome ──────────────────────
 -- A report points at a post, a comment or a user. A snapshot of the reported
 -- content is kept so moderators still see what it was after it is deleted.
-CREATE TABLE IF NOT EXISTS reports (
+CREATE TABLE reports (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   reporter_id     INT          NULL,                    -- NULL = flagged automatically (toxicity filter)
   target_type     ENUM('post', 'comment', 'user') NOT NULL,
@@ -144,7 +143,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 -- ── Password reset tokens (emailed link; only the SHA-256 is stored) ───────
-CREATE TABLE IF NOT EXISTS password_resets (
+CREATE TABLE password_resets (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   user_id     INT      NOT NULL,
   token_hash  CHAR(64) NOT NULL UNIQUE,
@@ -156,7 +155,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 -- ── Marketplace: tools for sale or for lending ──────────────────────────────
-CREATE TABLE IF NOT EXISTS listings (
+CREATE TABLE listings (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   seller_id       INT          NOT NULL,
   listing_type    ENUM('sale', 'lend') NOT NULL,
@@ -178,7 +177,7 @@ CREATE TABLE IF NOT EXISTS listings (
 );
 
 -- ── Store reviews: stores are created by the first review that names them ──
-CREATE TABLE IF NOT EXISTS stores (
+CREATE TABLE stores (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   name        VARCHAR(120) NOT NULL,
   area        VARCHAR(120) NOT NULL DEFAULT '',
@@ -194,7 +193,7 @@ CREATE TABLE IF NOT EXISTS stores (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS store_reviews (
+CREATE TABLE store_reviews (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   store_id    INT          NOT NULL,
   author_id   INT          NOT NULL,
@@ -209,7 +208,7 @@ CREATE TABLE IF NOT EXISTS store_reviews (
 );
 
 -- ── Private 1-on-1 messages ────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE messages (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   sender_id     INT      NOT NULL,
   recipient_id  INT      NOT NULL,
@@ -225,7 +224,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- ── Saved items ("bookmarks"): posts and marketplace listings ───────────────
-CREATE TABLE IF NOT EXISTS saved_posts (
+CREATE TABLE saved_posts (
   user_id     INT      NOT NULL,
   post_id     INT      NOT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -235,7 +234,7 @@ CREATE TABLE IF NOT EXISTS saved_posts (
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS saved_listings (
+CREATE TABLE saved_listings (
   user_id     INT      NOT NULL,
   listing_id  INT      NOT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -247,7 +246,7 @@ CREATE TABLE IF NOT EXISTS saved_listings (
 
 -- ── Notifications (likes, comments, replies, @mentions, follows, saves) ─────
 -- Deleting the post / comment / actor removes the notifications about it.
-CREATE TABLE IF NOT EXISTS notifications (
+CREATE TABLE notifications (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   user_id     INT          NOT NULL,                    -- who receives it
   actor_id    INT          NULL,                        -- who did it (NULL = system message)
@@ -267,7 +266,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 -- ── Two-factor login ───────────────────────────────────────────────────────
 -- One-time backup codes (only their SHA-256 is stored), for a lost phone.
-CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+CREATE TABLE totp_recovery_codes (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   user_id    INT      NOT NULL,
   code_hash  CHAR(64) NOT NULL,
@@ -277,7 +276,7 @@ CREATE TABLE IF NOT EXISTS totp_recovery_codes (
 );
 
 -- Step 1 of a 2FA login (correct password) → a short-lived challenge; step 2 trades it + a code for a session.
-CREATE TABLE IF NOT EXISTS login_challenges (
+CREATE TABLE login_challenges (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   user_id     INT      NOT NULL,
   token_hash  CHAR(64) NOT NULL UNIQUE,
@@ -288,7 +287,7 @@ CREATE TABLE IF NOT EXISTS login_challenges (
 );
 
 -- ── AI call log: every model call, for monitoring, cost and evaluation ─────
-CREATE TABLE IF NOT EXISTS ai_calls (
+CREATE TABLE ai_calls (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   feature     VARCHAR(40)  NOT NULL,                    -- toxicity | agent_post | agent_comment | agent_dm | ...
   status      ENUM('ok', 'invalid', 'error') NOT NULL,  -- invalid = answered, but not usable JSON
@@ -302,7 +301,7 @@ CREATE TABLE IF NOT EXISTS ai_calls (
 );
 
 -- ── What the AI agents did (daily quotas + an audit trail) ──────────────────
-CREATE TABLE IF NOT EXISTS agent_actions (
+CREATE TABLE agent_actions (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   agent_id    INT          NOT NULL,
   action      ENUM('post', 'comment', 'reply', 'dm', 'like', 'follow') NOT NULL,

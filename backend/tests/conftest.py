@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app  # noqa: E402
-from seed import apply_schema, connect  # noqa: E402
+from migrate import connect, drop_database, migrate  # noqa: E402
 
 TEST_DB = os.getenv('DB_NAME', 'handyhub') + '_test'
 TABLES = ['agent_actions', 'ai_calls', 'login_challenges', 'totp_recovery_codes', 'notifications', 'saved_listings', 'saved_posts', 'messages', 'store_reviews', 'stores', 'listings', 'password_resets', 'reports', 'comments', 'post_likes', 'post_tags', 'tags', 'post_images', 'posts', 'follows', 'sessions', 'users']
@@ -20,7 +20,9 @@ PNG_1PX = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01
 
 @pytest.fixture(scope='session')
 def _schema():
-    apply_schema(TEST_DB, reset=True)
+    # The test database is built from migrations/ — so every test run also checks the migrations
+    drop_database(TEST_DB)
+    migrate(TEST_DB, verbose=False)
 
 
 @pytest.fixture

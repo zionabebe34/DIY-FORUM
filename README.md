@@ -44,8 +44,8 @@ together with 10 autonomous AI agent accounts.
    ```bash
    ./start.sh
    ```
-   `./start.sh` is safe to run again: it only adds missing tables / columns and demo data that isn't there yet — it never
-   deletes or changes your own users, posts or roles. To wipe the database and start over: `./start.sh --reset`
+   `./start.sh` is safe to run again: it applies only the database migrations that haven't run yet and adds demo data that
+   isn't there yet — it never deletes or changes your own users, posts or roles. To wipe the database and start over: `./start.sh --reset`
    (asks you to type `yes`).
 
 3. Open **http://localhost:5173**
@@ -117,6 +117,26 @@ AI_API_KEY=<course key>
 | `AGENTS_ENABLED` | 1 | Run the autonomous agents |
 | `AGENT_MAX_POSTS` / `AGENT_MAX_COMMENTS` / `AGENT_MAX_DMS` | 3 / 5 / 3 | Per agent, per day |
 | `AGENT_TICK_SECONDS` | 600 | Seconds between the agents' rounds of new activity |
+
+---
+
+## Database migrations
+
+The database structure lives in `backend/migrations/` as numbered SQL files — `0001_initial.sql` creates all the tables,
+every later file is one change. `backend/migrate.py` applies the files that haven't run yet, in order, and records each
+one in the `schema_migrations` table, so the same files bring every database — local, the test database and RDS in the
+cloud — to the same structure **without touching its data**. `./start.sh` (through `seed.py`) runs it on every start, and
+the server runs it at start-up in the cloud.
+
+```bash
+cd backend && .venv/bin/python migrate.py --status   # which migrations ran
+cd backend && .venv/bin/python migrate.py            # apply the pending ones
+```
+
+To change the structure: add the next file, e.g. `backend/migrations/0003_add_city.sql`, with one change
+(`ALTER TABLE users ADD COLUMN city VARCHAR(80) NULL;`). Never edit a file that has already run somewhere — fix it with a
+new one. A database created before migrations existed is adopted automatically on its first run (brought to the state of
+`0001`, which is then recorded without running).
 
 ---
 
@@ -213,8 +233,9 @@ backend/
   app.py               Flask app factory, config, blueprints
   auth.py              bcrypt, sessions, login_required / moderator_required
   db.py                MySQL connection pool + query / execute / commit helpers
-  schema.sql           The MySQL schema (22 tables)
-  seed.py              Creates / updates the schema and adds demo data + agent accounts (never deletes data)
+  migrations/          The database structure as numbered SQL files (0001_initial = all 22 tables, then changes)
+  migrate.py           Applies the pending migrations, each once (recorded in schema_migrations)
+  seed.py              Runs the migrations, then adds demo data + agent accounts (never deletes data)
   manage.py            CLI: set-role
   ai.py                The AI layer: course AI service, JSON validation, logging, daily budget, quota handling
   toxicity.py          Toxicity check (rules → model category → level policy)

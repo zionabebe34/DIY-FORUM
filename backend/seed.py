@@ -1,6 +1,6 @@
-"""Create / update the database schema and add the demo data.
+"""Bring the database up to date (migrations/) and add the demo data.
 
-    python seed.py            # safe: create missing tables/columns, add the demo
+    python seed.py            # safe: runs the pending migrations, then adds the demo
                               #       users & posts only if they aren't there yet.
                               #       Never deletes or changes existing data.
     python seed.py --reset    # DESTRUCTIVE: drop the whole database and start over
@@ -16,10 +16,10 @@ import sys
 import zlib
 from datetime import datetime, timedelta, timezone
 
-import mysql.connector
 from dotenv import load_dotenv
 
 from auth import hash_password
+from migrate import connect, drop_database, migrate  # noqa: F401  (connect is used by tests / manage.py)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -234,57 +234,6 @@ def write_seed_images(upload_dir):
 
 
 # ── Schema + seeding ────────────────────────────────────────────────────────
-# Columns added after a table was first created. `CREATE TABLE IF NOT EXISTS`
-# won't touch an existing table, so these are added with ALTER when missing.
-COLUMN_MIGRATIONS = [
-    ('users', 'role', "ENUM('user', 'moderator', 'admin') NOT NULL DEFAULT 'user'"),
-    ('users', 'is_banned', 'BOOLEAN NOT NULL DEFAULT FALSE'),
-    ('users', 'ban_reason', 'VARCHAR(300) NULL'),
-    ('users', 'banned_at', 'DATETIME NULL'),
-    ('posts', 'shared_post_id', 'INT NULL'),
-    ('users', 'totp_enabled', 'BOOLEAN NOT NULL DEFAULT FALSE'),
-    ('users', 'totp_secret', 'VARCHAR(64) NULL'),
-    ('users', 'totp_pending', 'VARCHAR(64) NULL'),
-    ('users', 'totp_last_step', 'BIGINT NULL'),
-    ('users', 'google_id', 'VARCHAR(64) NULL UNIQUE'),
-]
-
-
-def migrate_columns(cur, db_name):
-    for table, column, definition in COLUMN_MIGRATIONS:
-        cur.execute('SELECT 1 FROM information_schema.columns '
-                    'WHERE table_schema = %s AND table_name = %s AND column_name = %s',
-                    (db_name, table, column))
-        if not cur.fetchall():
-            cur.execute(f'ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}')
-    # ENUMs that gained values after release (MODIFY is a no-op when already up to date)
-    cur.execute("""ALTER TABLE notifications MODIFY kind
-                   ENUM('like', 'comment', 'reply', 'mention', 'follow', 'save', 'share', 'system') NOT NULL""")
-
-def connect(database=None):
-    return mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'), port=int(os.getenv('DB_PORT', '3306')),
-        user=os.getenv('DB_USER', 'root'), password=os.getenv('DB_PASSWORD', ''),
-        database=database, charset='utf8mb4', collation='utf8mb4_unicode_ci', time_zone='+00:00', use_pure=True)
-
-
-def apply_schema(db_name, reset=False):
-    conn = connect()
-    cur = conn.cursor()
-    if reset:
-        cur.execute(f'DROP DATABASE IF EXISTS `{db_name}`')
-    cur.execute(f'CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci')
-    cur.execute(f'USE `{db_name}`')
-    with open(os.path.join(BASE_DIR, 'schema.sql'), encoding='utf-8') as f:
-        sql = '\n'.join(line for line in f if not line.lstrip().startswith('--'))
-    for statement in sql.split(';'):
-        if statement.strip():
-            cur.execute(statement)
-    migrate_columns(cur, db_name)
-    conn.commit()
-    conn.close()
-
-
 def seed(db_name, upload_dir):
     conn = connect(db_name)
     cur = conn.cursor()
@@ -491,7 +440,9 @@ if __name__ == '__main__':
     if reset and not confirm_reset(name):
         print('Cancelled — nothing was deleted.')
         sys.exit(1)
-    apply_schema(name, reset=reset)
+    if reset:
+        drop_database(name)
+    migrate(name)   # the structure comes from migrations/ (creates the database when missing)
     seed(name, os.getenv('UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads')))
     seed_extras(name)
     seed_agents(name)
