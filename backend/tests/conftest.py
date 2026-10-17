@@ -34,9 +34,12 @@ def app(_schema, tmp_path):
     conn.commit()
     conn.close()
     # MAIL_BACKEND=memory: tests must never send real email, whatever .env says
-    # AI_PROVIDER=off: tests never call the real AI service (AI tests install a fake one)
+    # AI_PROVIDER=off: tests never call the real AI service (AI tests install a fake one);
+    # MAIL_BACKEND=memory: tests must never send real email, whatever .env says
     return create_app({'DB_NAME': TEST_DB, 'UPLOAD_DIR': str(tmp_path), 'TESTING': True, 'MAIL_BACKEND': 'memory',
-                       'AI_PROVIDER': 'off', 'AI_DAILY_BUDGET': 0})
+                       'AI_PROVIDER': 'off', 'AI_DAILY_BUDGET': 0,
+                       # tests never depend on the real keys in backend/.env (Google tests set fake ones)
+                       'GOOGLE_CLIENT_ID': '', 'GOOGLE_CLIENT_SECRET': ''})
 
 
 @pytest.fixture

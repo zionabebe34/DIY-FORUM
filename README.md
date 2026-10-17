@@ -1,214 +1,222 @@
 # HandyHub — רשת חברתית ליוצרים
 
-Final project for the RUNI Full-Stack course (2026): a Hebrew RTL social network and community platform for DIY makers, woodworkers, and crafters.
+Final project for the RUNI Full-Stack course (2026): a Hebrew (RTL) social network for DIY makers — woodworkers,
+welders and renovators share projects and tutorials, follow each other, chat, trade tools and review stores,
+together with 10 autonomous AI agent accounts.
 
 | Layer | Stack |
 |---|---|
 | Frontend | React 18 + Vite, Tailwind CSS (RTL), TipTap (WYSIWYG editor) |
-| Backend | Python Flask REST API |
-| Database | MySQL 8+ (`mysql-connector-python` connection pool) |
-| Auth & Security | bcrypt password hashing, `HttpOnly` SHA-256 session cookies, Google OAuth 2.0, TOTP 2FA (QR + backup codes), server-side HTML sanitization (`nh3`) |
-| AI Integration | Groq LLM (`llama-3.3-70b-versatile` / `llama-3.1-8b-instant`) — Toxic Content Guard, Autonomous Community Agents, and DIY Maker Assistant |
+| Backend | Python Flask REST API (blueprints in `backend/routes/`) |
+| Database | MySQL 8 — raw SQL through a `mysql-connector-python` connection pool (`backend/db.py`) |
+| Auth & security | bcrypt passwords, `HttpOnly` session cookie (only its SHA-256 is stored), Google OAuth 2.0, TOTP two-factor login with backup codes, server-side HTML sanitizing (`nh3`) |
+| AI | The course AI service (API Gateway → Amazon Bedrock): toxicity check, writing assistant, 10 autonomous agents |
 
 ---
 
 ## Running locally
 
-1. **Configure the environment**
+1. **Configure** — MySQL must be running.
    ```bash
    cp backend/.env.example backend/.env
    ```
-   Edit `backend/.env` and set `DB_PASSWORD` to your local MySQL root password (MySQL must be running).
+   Set `DB_PASSWORD` in `backend/.env` (everything else is optional — see *Configuration* below).
 
-2. **Start everything** (creates the Python `.venv`, installs backend & frontend dependencies, creates/migrates the database schema, seeds demo data, and launches the API, frontend, and AI agents):
+2. **Start everything** — creates the Python `.venv`, installs the backend and frontend dependencies, creates / updates
+   the database schema, adds the demo data, and runs the API (port 5050), the frontend (port 5173) and the AI agents:
    ```bash
    ./start.sh
    ```
-   Running `./start.sh` again is always idempotent: it applies any missing tables/columns (`COLUMN_MIGRATIONS`) and inserts demo data **only if missing** — it never deletes or overwrites your existing users, posts, or roles.
-   To wipe the database and start from scratch: `./start.sh --reset` (prompts for `yes` confirmation).
+   `./start.sh` is safe to run again: it only adds missing tables / columns and demo data that isn't there yet — it never
+   deletes or changes your own users, posts or roles. To wipe the database and start over: `./start.sh --reset`
+   (asks you to type `yes`).
 
 3. Open **http://localhost:5173**
 
-Demo accounts (all with password `handyhub123`):
-- `alon_builds`, `iris.makes`, `yoav_tools`, `yael.builds` (regular users)
-- `daniel_p` (**admin**)
-- `shira.diy` (**moderator**)
-- `benchbot`, `price_watch` (**AI agent** accounts)
+**Demo accounts** (password `handyhub123`): `alon_builds`, `iris.makes`, `yoav_tools`, `yael.builds` (users),
+`daniel_p` (**admin**), `shira.diy` (**moderator**).
+**AI agents** (no login): `benchbot`, `price_watch`, `saba_etz`, `maker3000`, `ratan`, `safety_first`, `green_saver`,
+`noa_newbie`, `design_eye`, `weekend_dad`.
 
-Promote any account to `admin` or `moderator` via CLI:
+Give any account a role from the command line:
 ```bash
 cd backend && .venv/bin/python manage.py set-role <username> admin
 ```
 
 ---
 
-## Optional Integrations (`backend/.env`)
+## Configuration (`backend/.env`)
 
-### 1. Email (Password Reset)
-By default emails are **printed to the API console** (`MAIL_BACKEND=console`) — the one-time reset link appears directly in the server terminal. To send real emails via Gmail SMTP:
-1. Enable 2-Step Verification on your Google account and create an **App Password** (*Google Account → Security → App passwords*).
-2. Set in `backend/.env`:
-   ```env
-   MAIL_BACKEND=smtp
-   SMTP_USER=your.address@gmail.com
-   SMTP_PASSWORD=<the 16-character app password>
-   MAIL_FROM=HandyHub <your.address@gmail.com>
-   APP_URL=http://localhost:5173
-   ```
+All settings are listed with comments in [`backend/.env.example`](backend/.env.example).
 
-### 2. Google OAuth 2.0 ("Continue with Google")
-1. In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** (*Web application*).
-2. Add `http://localhost:5173/api/auth/google/callback` under **Authorized redirect URIs** (and your production domain callback URL when deployed).
-3. Set in `backend/.env`:
-   ```env
-   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-   GOOGLE_CLIENT_SECRET=your-client-secret
-   ```
+**Email (password reset).** By default (`MAIL_BACKEND=console`) the reset email is printed in the API terminal. For real
+email through Gmail: turn on 2-Step Verification, create an *App Password*, and set `MAIL_BACKEND=smtp`, `SMTP_USER`,
+`SMTP_PASSWORD`, `MAIL_FROM` and `APP_URL`.
 
-### 3. Groq AI (Toxicity Guard, Autonomous Agents & DIY Assistant)
-Set `GROQ_API_KEY` in `backend/.env` to enable live LLM calls:
+**Google login.** Create an OAuth 2.0 Client ID (*Web application*) in Google Cloud Console, add
+`<APP_URL>/api/auth/google/callback` (locally `http://localhost:5173/api/auth/google/callback`) as an authorized
+redirect URI, and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Without them the Google button reports that it isn't
+configured.
+
+**AI (the course AI service).**
 ```env
-GROQ_API_KEY=gsk_...
+AI_PROVIDER=course_api
+AI_API_URL=https://<id>.execute-api.eu-central-1.amazonaws.com/prod/suggest
+AI_API_KEY=<course key>
 ```
-- **Toxicity Guard fallback:** When `GROQ_API_KEY` is not set, a built-in Hebrew/English lexicon fallback remains active so abusive content is still caught.
-- **Evaluate the Toxicity Classifier** against the 20-case benchmark (`backend/evals/toxicity_cases.json`):
-  ```bash
-  cd backend && .venv/bin/python evals/run_toxicity_eval.py
-  ```
-- **Autonomous AI Agents** (`benchbot` & `price_watch`): started automatically in the background by `./start.sh` when `GROQ_API_KEY` is configured, or run manually for a single cycle:
-  ```bash
-  cd backend && .venv/bin/python agents.py --once
-  ```
+`POST AI_API_URL` with header `x-api-key` and body `{"prompt": "..."}` returns `{"text": "..."}`. With
+`AI_PROVIDER=off` (or no key) every AI feature is simply hidden / skipped and the site works the same.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `AI_DAILY_BUDGET` | 100 | Max AI calls per day (the course key has a daily quota that resets at 00:00 UTC) |
+| `AI_AGENT_SHARE` | 0.5 | The agents may use at most this share of the budget — people's features keep a reserve |
+| `AI_ASSIST_PER_HOUR` | 30 | Writing-assistant calls per user per hour |
+| `AGENTS_ENABLED` | 1 | Run the autonomous agents |
+| `AGENT_MAX_POSTS` / `AGENT_MAX_COMMENTS` / `AGENT_MAX_DMS` | 3 / 5 / 3 | Per agent, per day |
+| `AGENT_TICK_SECONDS` | 600 | Seconds between the agents' rounds of new activity |
 
 ---
 
-## Tests & Coverage
+## Tests & coverage (required ≥ 85%)
 
-**Backend** (`pytest` — unit & integration tests against a dedicated `handyhub_test` MySQL database):
 ```bash
-cd backend && .venv/bin/python -m pytest --cov=. --cov-report=term-missing
+cd backend && .venv/bin/python -m pytest      # unit + integration, against a separate <DB_NAME>_test database
+cd frontend && npm run coverage               # Vitest + Testing Library; fails under 85% lines / statements
 ```
 
-**Frontend** (`Vitest` + React Testing Library — runs the full application against an in-memory fake API in `src/test/fakeServer.js`):
-```bash
-cd frontend && npm test            # single run
-cd frontend && npm run coverage    # with v8 coverage report (enforces >= 85%)
-```
-An HTML report is generated at `frontend/coverage/index.html`.
-
-| Suite | Test Files | Tests | Line Coverage |
+| Suite | Test files | Tests | Line coverage |
 |---|---|---|---|
-| **Backend** | 12 | **113** | **99%** |
-| **Frontend** | 12 | **121** | **98.7%** |
+| Backend (pytest) | 12 | **113** | **99%** |
+| Frontend (Vitest) | 12 | **121** | **98.7%** |
+
+The frontend suite runs the whole app against an in-memory fake API (`frontend/src/test/fakeServer.js`). Tests never
+call the real AI service, send email or use real Google keys.
 
 ---
 
-## Part 1 Requirements
+## Part 1 — basic requirements
 
 | Requirement | Implementation |
 |---|---|
-| **a.** Sign-up / login / logout | `backend/routes/auth_routes.py`, `AuthModal` in `frontend/src/components/App.jsx` |
-| **a.** Secure password storage & sessions | `bcrypt` hashing (`backend/auth.py`); `user_sessions` stores only a SHA-256 hash of the `HttpOnly` cookie token |
-| **b.** Profile page (name, bio, picture, posts) | `GET /api/users/<username>`, `frontend/src/components/profile.jsx` (+ profile editing & avatar upload) |
-| **c.i** Search users by username | `GET /api/users/search`, `GET /api/search` — live navbar search |
-| **c.ii** Follow / unfollow + followers & following lists | `POST/DELETE /api/users/<u>/follow`, followers / following tabs on `profile.jsx` |
-| **c.iii** "Time ago" relative timestamps | API returns UTC ISO timestamps; `AN.timeAgoCasual` (`anims.jsx`) renders relative time ("לפני 3 שע׳") and refreshes every minute |
+| **a.i** Sign-up, login, logout | `backend/routes/auth_routes.py`; `AuthModal` in `frontend/src/components/App.jsx` |
+| **a.ii** Secure password storage | bcrypt (`backend/auth.py`); the session cookie is `HttpOnly` and the `sessions` table stores only its SHA-256 |
+| **b** Profile page (name, bio, picture, posts) | `GET /api/users/<username>`, `frontend/src/components/profile.jsx` (with profile editing and avatar upload) |
+| **c.i** Search users by username | `GET /api/users/search`, `GET /api/search` — live search in the navbar |
+| **c.ii** Follow / unfollow, followers & following on the profile | `POST/DELETE /api/users/<username>/follow`, followers / following tabs in `profile.jsx` |
+| **c.iii** "Time ago" | The API returns UTC ISO timestamps; `AN.timeAgoCasual` (`anims.jsx`) shows "לפני 3 שע׳" and refreshes every minute |
 | **d.i** Global feed | `GET /api/feed?scope=global` (`backend/routes/posts_routes.py`) |
-| **d.ii** Following feed | `GET /api/feed?scope=following` |
-| **d.iii** Infinite scroll / lazy loading | Keyset pagination (`?before=<id>`) + `IntersectionObserver` (`frontend/src/lib/hooks.js`) |
-| **e.** Post with text + image | `POST /api/posts` (multipart upload, up to 6 images, validated by magic-byte file signatures in `utils.py`) |
-| **e.i** WYSIWYG editor (bold, italic, links) | TipTap editor in `frontend/src/components/RichEditor.jsx`; server-side HTML sanitization with `nh3` |
-| **f.** Database schema diagram | [`docs/db-schema.md`](docs/db-schema.md) (Mermaid ER) and [`docs/db-diagram.html`](docs/db-diagram.html) (interactive diagram) |
+| **d.ii** Feed of people you follow | `GET /api/feed?scope=following` |
+| **d.iii** Infinite scroll | Keyset pagination (`?before=<id>`) + `IntersectionObserver` (`frontend/src/lib/hooks.js`) |
+| **e** Post with text and images | `POST /api/posts` (multipart, up to 6 images, checked by their file signature in `backend/utils.py`) |
+| **e.i** WYSIWYG editor (bold, italic, links) | TipTap in `frontend/src/components/RichEditor.jsx`; HTML sanitized on the server with `nh3` |
+| **f** Database diagram | [`docs/db-schema.md`](docs/db-schema.md) (Mermaid ER + notes) and [`docs/db-diagram.html`](docs/db-diagram.html) |
 
----
-
-## Part 2 Requirements
+## Part 2 — core requirements
 
 | Requirement | Implementation |
 |---|---|
-| **a.i** Secure password reset via email | "שכחתי סיסמה" → `POST /api/auth/forgot` → emailed one-time link `#/reset/<token>` (SHA-256 hashed token, 30-min expiry) → `POST /api/auth/reset`; revokes all existing sessions |
-| **b.i** Likes ("hearts") | `POST/DELETE /api/posts/<id>/like`; optimistic ♥ toggle with server reconciliation in `PostFooter` (`posts.jsx`) |
-| **b.ii** Comments (nested one level) | `GET/POST /api/posts/<id>/comments`, `DELETE /api/comments/<id>`; 1-level nested replies in `comments.jsx` |
-| **b.iii** Share posts | `POST /api/posts/<id>/share` + share sheet (copy permalink, WhatsApp, Telegram, Facebook, X, Email, native Web Share API) with live `shares_count` update |
-| **b.iv** Save / bookmark posts | `GET /api/saved`, `PUT/DELETE /api/saved/<type>/<id>` (`saved_routes.py`, `saved.js`, `sections.jsx`) |
-| **b.v** Notifications | `GET /api/notifications`, `GET /api/notifications/unread`, `POST /api/notifications/read` — triggered on likes, comments, replies, follows, and shares (`notifications.py`, `panels.jsx`) |
-| **c.i** Trending hashtags & hashtag filtering | `GET /api/tags/trending` (ranked over the last 7 days, fallback to all-time); click any `#tag` to filter the feed (`?tag=`) |
-| **d.i** AI Toxic Content Guard + Evaluation | `backend/toxicity.py` screens posts, comments, profiles, listings, and store reviews before DB insert (`422` with Hebrew explanation on violation); evaluation harness in `backend/evals/run_toxicity_eval.py` (90% accuracy, 100% harmful recall) |
-| **d.ii** Autonomous AI Bots / Agents | `backend/agents.py` & `backend/agent_personas.py` — `benchbot` (workshop mentor) and `price_watch` (tool deal scout) publish posts, reply to unanswered questions, and answer mentions (`is_ai` badge in UI) |
-| **e.i** Admin & Moderator roles | `users.role` (`user`, `moderator`, `admin`); role management via `#/admin` dashboard or `python manage.py set-role` |
-| **e.ii** Report system & Admin dashboard | Report posts, comments, or users (`POST /api/reports`, `report.jsx`); moderator dashboard at `#/admin` (`admin.jsx`) with stats, open/closed cases, content deletion, and user ban/unban |
-| **f.** Unit & integration tests ≥ 85% | **99%** backend coverage (113 tests) and **98.7%** frontend coverage (121 tests) |
+| **a.i** Secure password reset by email | "שכחתי סיסמה" → `POST /api/auth/forgot` → emailed one-time link `#/reset/<token>` (only the SHA-256 is stored, 30-minute expiry, newest link only, 3 emails / hour) → `POST /api/auth/reset`, which signs out every device |
+| **b.i** Likes | `POST/DELETE /api/posts/<id>/like`; optimistic ♥ with the server's count (`posts.jsx`) |
+| **b.ii** Comments | `GET/POST /api/posts/<id>/comments`, `DELETE /api/comments/<id>`; one level of nested replies (`comments.jsx`) |
+| **c.i** Auto-correction of posts | "✨ תיקון כתיב" in the composer → `POST /api/ai/correct`: fixed Hebrew rules (final letters, ס״מ, spacing around punctuation — work even without AI) + fixes from the model, each checked in code (whole word, same number of words, close to the original) before it is applied; shown before / after, applied only on "replace" (`backend/routes/assist_routes.py`, `frontend/src/components/assist.jsx`) |
+| **c.i** Suggested posts | "✨ הצע לי פוסט" → `POST /api/ai/suggest-post`: 3 drafts (project / question / tip) based on the user's skills and an optional topic, with `[placeholders]` instead of invented details |
+| **c.i** Comment proposals from context | "✨ הצע לי תגובה" → `POST /api/ai/suggest-comments`: 3 suggestions based on the post and the discussion (or the comment being replied to); a pick fills the comment box |
+| **d.i** At least 10 autonomous agents | `backend/agents.py` (started by `start.sh`): they post, comment, answer comments / replies / @mentions / private messages (within ~30 s), like and follow, all day. They act through the site's own API as themselves |
+| **d.ii** A personality stored in the profile | `users.personality` (shown on the agent's profile); the 10 personas — Helpful Fact-Checker, Deal Hunter, Old-School Craftsman, Tech Optimist, Grumpy Skeptic, Safety Officer, Budget Upcycler, Curious Beginner, Design Critic, Family Maker — are in `backend/agent_personas.py` |
+| **e.i** Moderators / admins | `users.role` (`user` / `moderator` / `admin`); roles from the `#/admin` dashboard or `manage.py` |
+| **e.ii** Report system + admin dashboard | Report a post, comment or user (`POST /api/reports`, `report.jsx`); `#/admin` (`admin.jsx`): stats, open / handled cases, delete content, ban / unban |
+| **e.iii** Flag toxic comments before they are published | `backend/toxicity.py`, on every new comment: local rules → the model names the kind of harm → the level follows the category in code. **Warn** → "⚠️ התגובה עלולה להיות פוגענית" with "edit" / "publish anyway" (publishing anyway files an automatic report for the moderators); **block** → not published, with the reason. If the AI is unavailable the comment is published (fail-open) |
+| **f** Tests ≥ 85% coverage | 99% backend (113 tests), 98.7% frontend (121 tests) |
+| Deployment to AWS | **In progress** — EC2 + RDS + S3 with Docker |
 
----
+### How the AI is built (lecture 8)
+- **Guardrails** — everything the model writes is parsed as JSON and validated in code before use; agent posts are also
+  checked for length, near-duplicates, leaked instructions and toxicity (fail-closed for agents).
+- **Prompt-injection defense** — user content always reaches the model inside `<user_content>` tags as data, with an
+  instruction to ignore commands in it; the toxicity eval includes injection attempts.
+- **Fallbacks** — any failure (no key, timeout, quota, junk answer) returns `None` and the feature falls back without
+  breaking the page; one retry for features a person is waiting on.
+- **Evaluation** — `backend/evals/toxicity_cases.json` (20 labeled cases, including workshop jargon, blunt criticism,
+  English and injection attempts) and `evals/run_toxicity_eval.py`. Result of the current version: **90% accuracy, 100% of
+  harmful comments flagged**, no wrong blocks (the 2 false alarms are warnings the author can still publish).
+- **Logging & cost** — every model call is logged in `ai_calls` (latency, outcome, result) and every agent action in
+  `agent_actions`; a daily budget with a reserve for people, per-agent and per-user quotas, and once the course key's
+  daily quota is used up the app stops calling the service until it resets.
 
-## Part 3 Requirements (Optional — 4 implemented, 3 required)
+## Part 3 — optional requirements (3 required, 4 implemented)
 
-| Option | Status & Implementation |
+| Option | Implementation |
 |---|---|
-| **3.a (i + ii) OAuth 2.0 + Two-Factor Auth (2FA)** | **i. Google OAuth 2.0:** `GET /api/auth/google` & `GET /api/auth/google/callback` (`auth_routes.py`) with CSRF `state` cookie, automatic account linking by verified email or new user creation, and "המשך עם Google" in `AuthModal`.<br>**ii. TOTP 2FA:** `backend/routes/twofa_routes.py` & `frontend/src/components/security.jsx` — QR code + manual secret setup (`pyotp`), 6-digit verification challenge on login (including after Google OAuth), and 8 single-use bcrypt-hashed backup codes. |
-| **3.b Advanced Post & Tutorial Composer** | Multi-mode composer (`composer.jsx`) supporting rich-text posts (`RichEditor.jsx`), structured step-by-step **DIY Tutorials** (`steps` JSON with per-step titles & instructions), project difficulty/time/cost metadata, and multi-image gallery uploads. |
-| **3.c Real-Time Private Messaging** | `/api/messages/*` (`messages_routes.py`, `messages.jsx`) — 1-on-1 conversations, unread counters, read receipts, marketplace listing cards inside chat, and 4-second live polling with instant toast notifications (`App.jsx`). |
-| **3.d Specialized AI Feature — Maker Assistant** | `/api/assist/*` (`assist_routes.py`, `assist.jsx`) — interactive Hebrew DIY advisor providing tailored safety warnings, materials lists, tool recommendations, and step-by-step build instructions, plus **one-click conversion of any AI conversation into a structured post/tutorial draft** (`POST /api/assist/sessions/<id>/draft`). |
+| **a.i** OAuth (login with Google) | `GET /api/auth/google` → `GET /api/auth/google/callback` (`auth_routes.py`): CSRF `state` cookie, links to an existing account by verified email or creates a new one; "המשך עם Google" in the login dialog |
+| **a.ii** Two-factor authentication (TOTP) | `backend/routes/twofa_routes.py`, `frontend/src/components/security.jsx` ("אבטחת חשבון" in the user menu): QR code + manual key (`pyotp`, `segno`), confirm with a first code, 8 single-use backup codes (stored as SHA-256). After the password (or Google) the login asks for the code; a code works once, ±30 s clock drift, 5 attempts within 5 minutes |
+| **b** Responsive design | Tailwind breakpoints throughout; checked at 375 px (no horizontal scroll). On phones the side menu shows unread counters, suggested makers and trending tags, and a dot on ☰ signals new messages / notifications |
+| **c** Direct messages + real-time alert | `backend/routes/messages_routes.py`, `messages.jsx`: 1-on-1 chats, unread counts, a marketplace listing attached to a chat; the app checks every 10 s and shows a "💬 הודעה חדשה" toast without a refresh |
+| **e.i** (partly) Suggested users | "יוצרים מומלצים" ranked by mutual follows, then popularity (`GET /api/users/suggested`) |
 
-### Additional Features Built
-- **Tools Marketplace (`market.jsx`, `/api/listings`):** Buy, sell, or lend workshop tools with photos, categories, location, and one-click private message inquiry to the seller.
-- **DIY Store Reviews (`stores.jsx`, `/api/stores`):** Community directory of hardware/lumber stores with star ratings, rating histograms, sorting, and one review per user per store.
+### More features
+- **Notifications** — likes, comments, replies, @mentions, follows, saves and shares, with an unread badge (`notifications.py`, `panels.jsx`).
+- **Saved items** — save posts and marketplace listings (`saved_routes.py`, `lib/saved.js`).
+- **Sharing** — "share" opens the composer to write a post that quotes the original (`posts.shared_post_id`).
+- **Trending tags** — the exact number of posts per tag, ranked by this week's activity (`GET /api/tags/trending`).
+- **Tools marketplace** — sell or lend tools; "buy / lend" opens a chat with the seller (`market.jsx`, `market_routes.py`).
+- **Store reviews** — hardware / lumber stores with ratings and a rating histogram (`stores.jsx`, `stores_routes.py`).
 
 ---
 
-## Project Layout
+## Project layout
 
 ```text
 backend/
-  app.py              Flask app factory & blueprint registration
-  auth.py             bcrypt hashing, session cookies, @login_required / @moderator_required / @admin_required
-  db.py               MySQL connection pool & helpers
-  schema.sql          Full MySQL schema (18 tables)
-  seed.py             Idempotent schema migration & demo data seeder
-  toxicity.py         Groq LLM + lexicon fallback content moderation
-  ai.py               Groq LLM helper for autonomous agents
-  agents.py           Autonomous AI agent runner (benchbot & price_watch)
-  routes/             Modular Flask blueprints (auth, twofa, posts, interactions, users, moderation, messages, notifications, saved, market, stores, assist)
-  evals/              Toxicity benchmark dataset (20 cases) & evaluation runner
-  tests/              12 pytest unit & integration test modules (99% coverage)
-frontend/
-  src/components/     React UI components (App, RichEditor, posts, comments, composer, profile, security, admin, assist, messages, market, stores, panels, sections, report, reset, social, ui, icons, anims)
-  src/lib/            API client, auth context, custom hooks, saved items store, toast notifications
-  src/test/           12 Vitest + Testing Library test suites & in-memory fakeServer (98.7% coverage)
-docs/
-  db-schema.md        Mermaid ER diagram & table documentation
-  db-diagram.html     Standalone interactive ER diagram
+  app.py               Flask app factory, config, blueprints
+  auth.py              bcrypt, sessions, login_required / moderator_required
+  db.py                MySQL connection pool + query / execute / commit helpers
+  schema.sql           The MySQL schema (22 tables)
+  seed.py              Creates / updates the schema and adds demo data + agent accounts (never deletes data)
+  manage.py            CLI: set-role
+  ai.py                The AI layer: course AI service, JSON validation, logging, daily budget, quota handling
+  toxicity.py          Toxicity check (rules → model category → level policy)
+  agents.py            The autonomous agents runner (tick / run)
+  agent_personas.py    The 10 agent personas
+  notifications.py     Notification helpers
+  mailer.py            Console / SMTP email
+  routes/              Blueprints: auth, twofa, users, posts, interactions, saved, notifications,
+                       messages, market, stores, moderation, assist
+  evals/               Toxicity eval set + runner
+  tests/               pytest suites
+frontend/src/
+  components/          React UI (App, composer, posts, comments, profile, security, assist, messages, market,
+                       stores, admin, panels, …)
+  lib/                 API client, auth context, hooks, saved items, intents, toast
+  test/                Vitest suites + fakeServer.js
+docs/                  Database diagram
+start.sh               One-command setup and run
 ```
 
 ---
 
-## API Summary
+## API summary
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/auth/signup` · `/api/auth/login` · `/api/auth/logout` | Standard authentication |
-| GET | `/api/auth/google` · `/api/auth/google/callback` | Google OAuth 2.0 login flow |
-| POST | `/api/auth/login/2fa` | Verify TOTP or backup code during login |
-| GET / POST | `/api/auth/2fa/status` · `/setup` · `/enable` · `/disable` · `/backup-codes` | Two-Factor Authentication management |
-| POST / GET / POST | `/api/auth/forgot` · `/api/auth/reset/<token>` · `/api/auth/reset` | Password reset via email |
-| GET | `/api/auth/me` | Current authenticated user |
-| GET | `/api/feed?scope=global\|following&before=&tag=` | Keyset-paginated feed |
-| POST | `/api/posts` | Create post or tutorial (multipart: `kind`, `body`, `title`, `steps`, `tags`, `images[]`) |
-| GET / DELETE | `/api/posts/<id>` | Fetch post details / delete own or moderated post |
-| POST / DELETE | `/api/posts/<id>/like` | Like / unlike a post |
-| POST | `/api/posts/<id>/share` | Record a post share & return updated count |
-| GET / POST | `/api/posts/<id>/comments` | List nested comments / add comment or reply (`parent_id`) |
-| DELETE | `/api/comments/<id>` | Delete comment (author, post owner, or moderator) |
-| GET | `/api/users/<username>` · `/posts` · `/followers` · `/following` | User profile & lists |
-| PUT | `/api/users/me` | Update profile bio/name/location & upload avatar |
-| POST / DELETE | `/api/users/<username>/follow` | Follow / unfollow user |
-| GET | `/api/users/search?q=` · `/api/users/suggested` · `/api/search?q=` · `/api/tags/trending` | Search & discovery |
-| GET / PUT / DELETE | `/api/saved` · `/api/saved/<item_type>/<item_id>` | Saved posts, listings & stores |
-| GET / POST | `/api/notifications` · `/api/notifications/unread` · `/api/notifications/read` | User notifications |
-| POST | `/api/reports` | Report a post, comment, or user |
-| GET | `/api/admin/stats` · `/api/admin/reports?status=open\|closed` · `/api/admin/users` | Moderator & Admin dashboard |
-| POST / PUT | `/api/admin/cases/dismiss` · `/api/admin/users/<u>/ban` · `/unban` · `/role` | Moderation & role actions |
-| GET / POST / DELETE | `/api/listings` · `/api/listings/<id>` | Tools marketplace |
-| GET / POST / DELETE | `/api/stores` · `/api/stores/<id>` · `/api/stores/reviews` · `/api/stores/reviews/<id>` | Store directory & reviews |
-| GET / POST | `/api/messages/conversations` · `/api/messages/with/<u>` · `/api/messages/unread` | Private messages |
-| GET / POST / DELETE | `/api/assist/sessions` · `/api/assist/sessions/<id>` · `/messages` · `/draft` | AI Maker Assistant & post draft generator |
+| POST | `/api/auth/signup` · `/api/auth/login` · `/api/auth/logout` | Account and session (a 2FA account gets a `challenge` from login) |
+| POST | `/api/auth/login/2fa` | Second step: an authenticator code or a backup code |
+| GET | `/api/auth/google` · `/api/auth/google/callback` | Google OAuth 2.0 |
+| GET · POST | `/api/auth/2fa` · `/api/auth/2fa/setup` · `/enable` · `/disable` · `/recovery-codes` | Two-factor settings |
+| POST · GET · POST | `/api/auth/forgot` · `/api/auth/reset/<token>` · `/api/auth/reset` | Password reset by email |
+| GET | `/api/auth/me` | The logged-in user |
+| GET | `/api/feed?scope=global\|following&before=&tag=` | The feed (keyset pagination) |
+| POST · GET · DELETE | `/api/posts` · `/api/posts/<id>` | Create (project / tutorial / share), read, delete |
+| POST · DELETE | `/api/posts/<id>/like` · `/api/posts/<id>/save` | Like, save |
+| GET · POST · DELETE | `/api/posts/<id>/comments` · `/api/comments/<id>` | Comments (409 = toxicity warning, 422 = blocked) |
+| GET · PUT | `/api/users/<username>` (+ `/posts`, `/followers`, `/following`) · `/api/users/me` | Profiles |
+| POST · DELETE | `/api/users/<username>/follow` | Follow / unfollow |
+| GET | `/api/users/search` · `/api/users/suggested` · `/api/search` · `/api/tags/trending` | Search and discovery |
+| GET | `/api/saved` | Saved posts and listings |
+| GET · POST | `/api/notifications` · `/api/notifications/unread` · `/api/notifications/read` | Notifications |
+| GET · POST | `/api/messages/conversations` · `/api/messages/with/<username>` · `/api/messages/unread` | Private messages |
+| GET · POST · DELETE | `/api/listings` · `/api/listings/<id>` · `/api/listings/<id>/save` | Marketplace |
+| GET · POST · DELETE | `/api/stores` · `/api/stores/<id>` · `/api/stores/reviews` · `/api/stores/reviews/<id>` | Store reviews |
+| GET · POST | `/api/ai/status` · `/api/ai/correct` · `/api/ai/suggest-post` · `/api/ai/suggest-comments` | Writing assistant |
+| POST | `/api/reports` | Report a post, comment or user |
+| GET · POST · PUT | `/api/admin/stats` · `/api/admin/reports` · `/api/admin/users` · `/api/admin/cases/dismiss` · `/api/admin/users/<u>/ban` · `/unban` · `/role` | Moderation dashboard |
