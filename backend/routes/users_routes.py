@@ -66,15 +66,22 @@ def suggested_users():
     """People you don't follow yet, ranked by mutual follows, then popularity."""
     me = _me_id()
     rows = query(
-        """SELECT u.*, FALSE AS is_following,
-                  (SELECT COUNT(*) FROM follows m
-                     JOIN follows mine ON mine.followee_id = m.follower_id AND mine.follower_id = %s
-                    WHERE m.followee_id = u.id) AS mutuals,
-                  (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers
-           FROM users u
-           WHERE u.id <> %s AND u.is_banned = FALSE
-             AND NOT EXISTS (SELECT 1 FROM follows x WHERE x.follower_id = %s AND x.followee_id = u.id)
-           ORDER BY mutuals DESC, followers DESC, u.id
+        """SELECT t.*,
+                  3 * t.mutuals
+                  + LN(1 + t.followers)
+                  + LN(1 + t.followers * 7 / (t.age_days + 7)) AS score
+           FROM (
+               SELECT u.*, FALSE AS is_following,
+                      (SELECT COUNT(*) FROM follows m
+                         JOIN follows mine ON mine.followee_id = m.follower_id AND mine.follower_id = %s
+                        WHERE m.followee_id = u.id) AS mutuals,
+                      (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
+                      DATEDIFF(NOW(), u.created_at) AS age_days
+               FROM users u
+               WHERE u.id <> %s AND u.is_banned = FALSE
+                 AND NOT EXISTS (SELECT 1 FROM follows x WHERE x.follower_id = %s AND x.followee_id = u.id)
+           ) t
+           ORDER BY score DESC, t.id
            LIMIT 5""",
         (me, me, me))
     return jsonify({'items': [public_user(r, {'is_following': False, 'mutuals': int(r['mutuals'])})
