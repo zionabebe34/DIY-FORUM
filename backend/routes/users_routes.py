@@ -84,7 +84,9 @@ def suggested_users():
            ORDER BY score DESC, t.id
            LIMIT 5""",
         (me, me, me))
-    return jsonify({'items': [public_user(r, {'is_following': False, 'mutuals': int(r['mutuals'])})
+    return jsonify({'items': [public_user(r, {'is_following': False, 'mutuals': int(r['mutuals']),
+                                              'followers': int(r['followers']), 'age_days': int(r['age_days']),
+                                              'score': round(float(r['score']), 3)})
                               for r in rows]})
 
 
